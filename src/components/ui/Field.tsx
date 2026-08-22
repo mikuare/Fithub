@@ -43,7 +43,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   const describedBy = error ? `${inputId}-err` : hint ? `${inputId}-hint` : undefined;
 
   return (
-    <div className={className}>
+    <div className={cn('min-w-0', className)}>
       {label && <Label htmlFor={inputId} hint={hint} required={required}>{label}</Label>}
       <div className="relative flex items-center">
         {prefix && <span className="absolute left-3.5 text-ink-3 text-sm pointer-events-none">{prefix}</span>}
@@ -82,7 +82,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   const auto = useId();
   const selectId = id ?? auto;
   return (
-    <div className={className}>
+    <div className={cn('min-w-0', className)}>
       {label && <Label htmlFor={selectId} hint={hint} required={required}>{label}</Label>}
       <div className="relative">
         <select
@@ -118,7 +118,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
   const auto = useId();
   const areaId = id ?? auto;
   return (
-    <div className={className}>
+    <div className={cn('min-w-0', className)}>
       {label && <Label htmlFor={areaId} hint={hint} required={required}>{label}</Label>}
       <textarea
         ref={ref}

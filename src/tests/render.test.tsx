@@ -281,6 +281,43 @@ describe('every page renders on a brand-new empty account', () => {
   }
 });
 
+/**
+ * A signed-up user who has not finished onboarding has `fitnessProfile: null`.
+ * Selectors that fell back to a fresh `['bodyweight']` array on every call made
+ * Zustand see a new snapshot each render and looped until React gave up — which
+ * crashed the whole page. The seeded passes above never caught it because they
+ * always provide a profile.
+ */
+describe('pages that read equipment survive a missing fitness profile', () => {
+  beforeEach(() => {
+    seedStores(true);
+    useData.setState({ fitnessProfile: null });
+  });
+
+  const EQUIPMENT_PAGES: Array<[string, () => ReactElement]> = [
+    ['WorkoutToday', () => <WorkoutToday />],
+    ['Exercises', () => <Exercises />],
+  ];
+
+  for (const [name, factory] of EQUIPMENT_PAGES) {
+    it(`${name} renders without an update-depth loop`, () => {
+      expect(() => renderPage(factory())).not.toThrow();
+      expect(reactErrors.join(' ')).not.toMatch(/Maximum update depth/i);
+      expect(reactErrors, `React errors on ${name}`).toEqual([]);
+    });
+  }
+
+  it('ExerciseDetail renders without an update-depth loop', () => {
+    expect(() => render(
+      <MemoryRouter initialEntries={['/exercises/barbell-bench-press']}>
+        <Routes><Route path="/exercises/:slug" element={<ExerciseDetail />} /></Routes>
+      </MemoryRouter>,
+    )).not.toThrow();
+    expect(reactErrors.join(' ')).not.toMatch(/Maximum update depth/i);
+    expect(reactErrors).toEqual([]);
+  });
+});
+
 describe('key content', () => {
   beforeEach(() => seedStores(false));
 

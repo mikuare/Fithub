@@ -36,7 +36,7 @@ export default function Progress() {
   const records = useData((s) => s.records);
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
       <PageHeader
         eyebrow="Progress"
         title="Am I improving?"

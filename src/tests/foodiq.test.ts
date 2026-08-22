@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { CAMERA_BLOCKER_COPY, diagnoseCamera } from '@/lib/fitness/scanEngine';
 import {
   foodBenefits, foodProfile, goalEatingStrategy, goalFit, rankFoodsForGoal,
   remainingMacros, suggestFoods,
@@ -152,6 +153,44 @@ describe('barcode validation', () => {
 
   it('sends only the digits to Open Food Facts', () => {
     expect(offProductUrl('544 9000-000996')).toBe('https://world.openfoodfacts.org/api/v0/product/5449000000996.json');
+  });
+});
+
+describe('camera diagnosis', () => {
+  const secure = window.isSecureContext;
+  const mediaDevices = Object.getOwnPropertyDescriptor(navigator, 'mediaDevices');
+  afterEach(() => {
+    Object.defineProperty(window, 'isSecureContext', { value: secure, configurable: true });
+    if (mediaDevices) Object.defineProperty(navigator, 'mediaDevices', mediaDevices);
+    else delete (navigator as { mediaDevices?: MediaDevices }).mediaDevices;
+  });
+
+  it('blames an insecure context first — the plain-http phone-testing trap', () => {
+    Object.defineProperty(window, 'isSecureContext', { value: false, configurable: true });
+    expect(diagnoseCamera(true)).toBe('insecure_context');
+    expect(CAMERA_BLOCKER_COPY.insecure_context.body).toMatch(/https/i);
+  });
+
+  it('reports a missing camera API when the context is secure', () => {
+    Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
+    expect(diagnoseCamera(true)).toBe('no_camera_api'); // jsdom has no mediaDevices
+  });
+
+  it('reports a missing decoder after the secure camera checks pass', () => {
+    Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
+    Object.defineProperty(navigator, 'mediaDevices', {
+      value: { getUserMedia: () => Promise.reject(new Error('not called')) },
+      configurable: true,
+    });
+    expect(diagnoseCamera(false)).toBe('no_engine');
+    expect(diagnoseCamera(true)).toBeNull();
+  });
+
+  it('has copy for every blocker it can return', () => {
+    for (const key of ['insecure_context', 'no_camera_api', 'no_engine'] as const) {
+      expect(CAMERA_BLOCKER_COPY[key].title.length).toBeGreaterThan(0);
+      expect(CAMERA_BLOCKER_COPY[key].body.length).toBeGreaterThan(0);
+    }
   });
 });
 

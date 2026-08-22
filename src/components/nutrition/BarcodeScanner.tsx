@@ -1,27 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Camera, CameraOff, Check, Info, Keyboard, Loader2, ScanBarcode, Search } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import {
+  AlertTriangle, Camera, Check, ImagePlus, Info, Keyboard, Loader2, ScanBarcode, Search,
+} from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Input, Select } from '@/components/ui/Field';
 import { barcodeValid, mapOffProduct, normalizeBarcode, offProductUrl, type ScannedProduct } from '@/lib/fitness/barcode';
-import { cn } from '@/lib/utils';
+import {
+  CAMERA_BLOCKER_COPY, createScanEngine, diagnoseCamera,
+  type CameraBlocker, type ScanEngine,
+} from '@/lib/fitness/scanEngine';
 import type { MealSlot, NutritionLog } from '@/types';
 
-/* Minimal typing for the native Shape Detection API — not yet in lib.dom. */
-interface DetectedBarcode { rawValue: string }
-interface BarcodeDetectorInstance { detect(source: HTMLVideoElement): Promise<DetectedBarcode[]> }
-interface BarcodeDetectorCtor { new (options?: { formats?: string[] }): BarcodeDetectorInstance }
-
-function getDetector(): BarcodeDetectorInstance | null {
-  const Ctor = (window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }).BarcodeDetector;
-  if (!Ctor) return null;
-  try {
-    return new Ctor({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] });
-  } catch {
-    return null;
-  }
-}
+/* iOS 13+ gates motion/camera-adjacent APIs behind permission prompts that must
+   originate in a user gesture; getUserMedia itself prompts natively. */
 
 const SLOT_OPTIONS: Array<{ value: MealSlot; label: string }> = [
   { value: 'breakfast', label: 'Breakfast' },
@@ -30,7 +23,8 @@ const SLOT_OPTIONS: Array<{ value: MealSlot; label: string }> = [
   { value: 'snack', label: 'Snacks' },
 ];
 
-type Phase = 'scan' | 'lookup' | 'found' | 'not_found' | 'error';
+type Phase = 'idle' | 'scanning' | 'lookup' | 'found' | 'not_found' | 'error';
+type CameraState = 'off' | 'starting' | 'live' | 'denied' | 'failed';
 
 export function BarcodeScanner({ defaultSlot, onClose, onAdd }: {
   defaultSlot: MealSlot;
@@ -39,14 +33,16 @@ export function BarcodeScanner({ defaultSlot, onClose, onAdd }: {
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const engineRef = useRef<ScanEngine | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const busyRef = useRef(false);
 
-  const detector = useMemo(() => getDetector(), []);
-  const cameraPossible = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia && !!detector;
-
-  const [cameraState, setCameraState] = useState<'starting' | 'live' | 'denied' | 'unavailable'>(
-    cameraPossible ? 'starting' : 'unavailable',
-  );
-  const [phase, setPhase] = useState<Phase>('scan');
+  const [engineReady, setEngineReady] = useState<boolean | null>(null);
+  const [blocker, setBlocker] = useState<CameraBlocker>(null);
+  const [cameraState, setCameraState] = useState<CameraState>('off');
+  const [phase, setPhase] = useState<Phase>('idle');
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoMiss, setPhotoMiss] = useState(false);
   const [manualCode, setManualCode] = useState('');
   const [manualError, setManualError] = useState<string | null>(null);
   const [code, setCode] = useState<string | null>(null);
@@ -55,64 +51,94 @@ export function BarcodeScanner({ defaultSlot, onClose, onAdd }: {
   const [servings, setServings] = useState('1');
   const [basis, setBasis] = useState<'serving' | '100g'>('serving');
 
-  /* ---- camera lifecycle: runs while the scan view is showing, restarts on retry ---- */
+  /* ---- build the decoder once, then diagnose the environment ---- */
   useEffect(() => {
-    if (!cameraPossible || phase !== 'scan') return;
     let cancelled = false;
-    let interval: ReturnType<typeof setInterval> | undefined;
-    setCameraState('starting');
     (async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' }, audio: false,
-        });
-        if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play().catch(() => {});
-        }
-        setCameraState('live');
-        interval = setInterval(async () => {
-          const video = videoRef.current;
-          if (!video || video.readyState < 2 || !detector) return;
-          try {
-            const found = await detector.detect(video);
-            const hit = found.find((b) => barcodeValid(b.rawValue));
-            if (hit && !cancelled) void lookUp(hit.rawValue);
-          } catch {
-            /* a frame that fails to decode is not an error worth surfacing */
-          }
-        }, 350);
-      } catch {
-        if (!cancelled) setCameraState('denied');
-      }
+      const engine = await createScanEngine();
+      if (cancelled) { engine?.dispose(); return; }
+      engineRef.current = engine;
+      setEngineReady(!!engine);
+      setBlocker(diagnoseCamera(!!engine));
     })();
     return () => {
       cancelled = true;
-      if (interval) clearInterval(interval);
+      engineRef.current?.dispose();
+      engineRef.current = null;
+    };
+  }, []);
+
+  /* ---- camera + decode loop, only while actively scanning ---- */
+  useEffect(() => {
+    if (phase !== 'scanning') return;
+    let cancelled = false;
+    let raf = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    (async () => {
+      setCameraState('starting');
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } },
+          audio: false,
+        });
+        if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
+        streamRef.current = stream;
+        const video = videoRef.current;
+        if (video) {
+          video.srcObject = stream;
+          // iOS needs these set as properties, not just attributes, before play().
+          video.setAttribute('playsinline', 'true');
+          video.muted = true;
+          await video.play().catch(() => {});
+        }
+        setCameraState('live');
+
+        const scanFrame = async () => {
+          if (cancelled) return;
+          const engine = engineRef.current;
+          const v = videoRef.current;
+          if (engine && v && v.readyState >= 2 && !busyRef.current) {
+            busyRef.current = true;
+            try {
+              const hit = await engine.decode(v);
+              if (hit && !cancelled) { void lookUp(hit); return; }
+            } catch { /* keep scanning */ } finally { busyRef.current = false; }
+          }
+          // Native detection is cheap enough for rAF; ZXing needs pacing.
+          if (engine?.kind === 'native') raf = requestAnimationFrame(() => void scanFrame());
+          else timer = setTimeout(() => void scanFrame(), 250);
+        };
+        void scanFrame();
+      } catch (err) {
+        if (cancelled) return;
+        const name = (err as { name?: string })?.name ?? '';
+        setCameraState(name === 'NotAllowedError' || name === 'SecurityError' ? 'denied' : 'failed');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      if (timer) clearTimeout(timer);
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
+      setCameraState('off');
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, cameraPossible]);
-
-  const stopCamera = () => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-  };
+  }, [phase]);
 
   /* ---- lookup ---- */
   const lookUp = async (raw: string) => {
     const normalized = normalizeBarcode(raw);
     setCode(normalized);
     setPhase('lookup');
-    if (!navigator.onLine) { setPhase('error'); return; }
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) { setPhase('error'); return; }
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 9000);
+      const timeout = setTimeout(() => controller.abort(), 12000);
       const res = await fetch(offProductUrl(normalized), { signal: controller.signal });
-      clearTimeout(timer);
+      clearTimeout(timeout);
       const mapped = mapOffProduct(await res.json());
       if (!mapped) { setPhase('not_found'); return; }
       setProduct(mapped);
@@ -126,10 +152,36 @@ export function BarcodeScanner({ defaultSlot, onClose, onAdd }: {
   const submitManual = () => {
     setManualError(null);
     if (!barcodeValid(manualCode)) {
-      setManualError('That does not look like a valid barcode — EAN-8, UPC or EAN-13 digits, including the last check digit.');
+      setManualError('That does not look like a valid barcode — enter all the digits under the bars, including the last one.');
       return;
     }
     void lookUp(manualCode);
+  };
+
+  /* ---- scan from a photo (also the iOS "take a picture" path) ---- */
+  const onPhoto = async (file: File | undefined) => {
+    if (!file) return;
+    setPhotoMiss(false);
+    setPhotoBusy(true);
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image();
+      img.decoding = 'sync';
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('load failed'));
+        img.src = url;
+      });
+      const hit = await engineRef.current?.decode(img);
+      if (hit) void lookUp(hit);
+      else setPhotoMiss(true);
+    } catch {
+      setPhotoMiss(true);
+    } finally {
+      URL.revokeObjectURL(url);
+      setPhotoBusy(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
   };
 
   /* ---- add to log ---- */
@@ -151,55 +203,106 @@ export function BarcodeScanner({ defaultSlot, onClose, onAdd }: {
     });
   };
 
-  const macroLine = (m: NonNullable<typeof chosen>) =>
-    [`${m.protein_g ?? '—'}p`, `${m.carbs_g ?? '—'}c`, `${m.fat_g ?? '—'}f`].join(' · ');
+  const restart = () => { setProduct(null); setCode(null); setPhase('idle'); };
+  const cameraUsable = engineReady === true && blocker === null;
 
   return (
     <Modal
       open
-      onClose={() => { stopCamera(); onClose(); }}
+      onClose={onClose}
       title="Scan a barcode"
-      description="Packaged foods only — point the camera at the barcode, or type it."
+      description="Packaged foods — scan live, use a photo, or type the digits."
       size="md"
       footer={phase === 'found' ? (
-        <Button block disabled={!canAdd} onClick={add} icon={<Check size={15} />}>
-          Add to log
-        </Button>
+        <Button block disabled={!canAdd} onClick={add} icon={<Check size={15} />}>Add to log</Button>
       ) : undefined}
     >
-      {(phase === 'scan' || phase === 'lookup') && (
+      {(phase === 'idle' || phase === 'scanning' || phase === 'lookup') && (
         <div className="space-y-4">
-          {/* Camera viewport */}
-          <div className="relative rounded-2xl overflow-hidden bg-surface-3 aspect-video grid place-items-center">
-            {cameraState === 'live' || cameraState === 'starting' ? (
+          {/* Viewport / start panel */}
+          <div className="relative rounded-2xl overflow-hidden bg-surface-3 aspect-[4/3] sm:aspect-video grid place-items-center">
+            {phase === 'scanning' && cameraState !== 'denied' && cameraState !== 'failed' ? (
               <>
                 {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-                <video ref={videoRef} playsInline muted className="absolute inset-0 h-full w-full object-cover" />
-                <div className="absolute inset-x-10 top-1/2 -translate-y-1/2 h-20 rounded-xl border-2 border-brand/80 pointer-events-none" aria-hidden />
-                {phase === 'lookup' ? (
-                  <span className="relative z-10 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-bg/80 text-sm font-semibold">
-                    <Loader2 size={14} className="animate-spin" /> Looking up {code}…
-                  </span>
-                ) : cameraState === 'starting' ? (
-                  <span className="relative z-10 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-bg/80 text-sm font-semibold">
-                    <Camera size={14} /> Starting camera…
-                  </span>
-                ) : null}
+                <video
+                  ref={videoRef} playsInline muted autoPlay
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+                <div className="absolute inset-x-8 top-1/2 -translate-y-1/2 h-24 rounded-xl border-2 border-brand/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)] pointer-events-none" aria-hidden />
+                <p className="relative z-10 mt-auto mb-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-bg/85 text-xs font-semibold">
+                  {cameraState === 'starting'
+                    ? <><Camera size={13} /> Starting camera…</>
+                    : <><ScanBarcode size={13} /> Point at the barcode</>}
+                </p>
               </>
             ) : (
-              <div className="p-6 text-center">
-                <CameraOff size={22} className="mx-auto text-ink-3" />
-                <p className="mt-2 text-sm font-semibold">
-                  {cameraState === 'denied' ? 'Camera access was blocked' : 'Live scanning is not available in this browser'}
-                </p>
-                <p className="mt-1 text-2xs text-ink-3 leading-relaxed max-w-sm mx-auto">
-                  {cameraState === 'denied'
-                    ? 'Allow camera access in your browser settings, or type the barcode below — it works exactly the same.'
-                    : 'This browser does not expose the barcode detector (most Android browsers do). Type the digits under the barcode instead.'}
-                </p>
+              <div className="p-5 text-center">
+                {phase === 'lookup' ? (
+                  <>
+                    <Loader2 size={22} className="mx-auto animate-spin text-brand-text" />
+                    <p className="mt-2 text-sm font-semibold">Looking up {code}…</p>
+                    <p className="mt-1 text-2xs text-ink-3">Checking Open Food Facts for this product.</p>
+                  </>
+                ) : cameraState === 'denied' || cameraState === 'failed' ? (
+                  <>
+                    <AlertTriangle size={22} className="mx-auto text-warn" />
+                    <p className="mt-2 text-sm font-semibold">
+                      {cameraState === 'denied' ? 'Camera permission was blocked' : 'The camera could not start'}
+                    </p>
+                    <p className="mt-1 text-2xs text-ink-3 leading-relaxed max-w-xs mx-auto">
+                      {cameraState === 'denied'
+                        ? 'Allow camera access for this site in your browser settings, then try again. A photo or the typed digits work too.'
+                        : 'Another app may be using it. Try again, use a photo, or type the digits.'}
+                    </p>
+                  </>
+                ) : blocker ? (
+                  <>
+                    <Info size={22} className="mx-auto text-info" />
+                    <p className="mt-2 text-sm font-semibold">{CAMERA_BLOCKER_COPY[blocker].title}</p>
+                    <p className="mt-1 text-2xs text-ink-3 leading-relaxed max-w-xs mx-auto">{CAMERA_BLOCKER_COPY[blocker].body}</p>
+                  </>
+                ) : (
+                  <>
+                    <ScanBarcode size={26} className="mx-auto text-ink-3" />
+                    <p className="mt-2 text-sm text-ink-3 max-w-xs mx-auto leading-relaxed">
+                      Hold the barcode inside the frame — it usually reads in a second or two.
+                    </p>
+                  </>
+                )}
               </div>
             )}
           </div>
+
+          {/* Actions */}
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              onClick={() => setPhase((p) => (p === 'scanning' ? 'idle' : 'scanning'))}
+              disabled={!cameraUsable || phase === 'lookup'}
+              icon={<Camera size={15} />}
+            >
+              {phase === 'scanning' ? 'Stop camera' : 'Start camera'}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => fileRef.current?.click()}
+              disabled={engineReady !== true || photoBusy || phase === 'lookup'}
+              loading={photoBusy}
+              icon={<ImagePlus size={15} />}
+            >
+              Scan a photo
+            </Button>
+            <input
+              ref={fileRef} type="file" accept="image/*" capture="environment" className="sr-only"
+              onChange={(e) => void onPhoto(e.target.files?.[0])}
+              aria-label="Choose or take a photo of a barcode"
+            />
+          </div>
+          {photoMiss && (
+            <p className="flex items-start gap-2 text-2xs text-warn leading-relaxed">
+              <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+              No barcode found in that image. Get closer so the bars fill the frame, keep it level and in focus, then try again.
+            </p>
+          )}
 
           {/* Manual entry — always available */}
           <div className="flex items-end gap-2">
@@ -213,25 +316,25 @@ export function BarcodeScanner({ defaultSlot, onClose, onAdd }: {
               prefix={<Keyboard size={14} />}
               className="flex-1"
             />
-            <Button variant="outline" onClick={submitManual} disabled={phase === 'lookup'} icon={<Search size={14} />}>
+            <Button variant="secondary" onClick={submitManual} disabled={phase === 'lookup'} icon={<Search size={14} />}>
               Look up
             </Button>
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 border-t border-line pt-3">
+            {engineReady !== null && (
+              <p className="flex items-start gap-2 text-2xs text-ink-3 leading-relaxed">
+                <ScanBarcode size={12} className="shrink-0 mt-0.5" />
+                <span>
+                  {engineReady
+                    ? `Decoder ready (${engineRef.current?.kind === 'native' ? 'built into this browser' : 'bundled — works on iPhone Safari'}). FitHub reads barcodes, not photos of meals.`
+                    : 'No barcode decoder available here — typing the digits works exactly the same.'}
+                </span>
+              </p>
+            )}
             <p className="flex items-start gap-2 text-2xs text-ink-3 leading-relaxed">
               <Info size={12} className="shrink-0 mt-0.5" />
-              <span>
-                Only the barcode digits leave this device, sent to <span className="font-medium">Open Food Facts</span> —
-                a free, open, community-run food database. Values are as the community recorded them.
-              </span>
-            </p>
-            <p className="flex items-start gap-2 text-2xs text-ink-3 leading-relaxed">
-              <ScanBarcode size={12} className="shrink-0 mt-0.5" />
-              <span>
-                FitHub reads barcodes; it does not guess food from photos. For whole foods without a
-                barcode, the food search already knows the common ones.
-              </span>
+              <span>Only the barcode digits leave this device, sent to <span className="font-medium">Open Food Facts</span>. Camera frames are processed on your phone and never uploaded.</span>
             </p>
           </div>
         </div>
@@ -241,14 +344,14 @@ export function BarcodeScanner({ defaultSlot, onClose, onAdd }: {
         <ScanProblem
           title="Not in the database"
           body={`Barcode ${code} is not in Open Food Facts yet — common for local and store-brand products. Add it as a custom entry from the label instead.`}
-          onRetry={() => setPhase('scan')}
+          onRetry={restart}
         />
       )}
       {phase === 'error' && (
         <ScanProblem
           title="Could not reach the food database"
           body="The lookup needs an internet connection. Check the connection and try again, or log the food manually from its label."
-          onRetry={() => setPhase('scan')}
+          onRetry={restart}
         />
       )}
 
@@ -258,13 +361,13 @@ export function BarcodeScanner({ defaultSlot, onClose, onAdd }: {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="font-bold truncate">{product.name}</p>
-                {product.brand && <p className="text-2xs text-ink-3">{product.brand}</p>}
+                {product.brand && <p className="text-2xs text-ink-3 truncate">{product.brand}</p>}
               </div>
               <Badge tone="muted" size="sm">Open Food Facts</Badge>
             </div>
             <p className="mt-2 text-sm tabular">
               <span className="font-black text-lg">{chosen.calories ?? '—'}</span>
-              <span className="text-ink-3"> kcal · {macroLine(chosen)}</span>
+              <span className="text-ink-3"> kcal · {[`${chosen.protein_g ?? '—'}p`, `${chosen.carbs_g ?? '—'}c`, `${chosen.fat_g ?? '—'}f`].join(' · ')}</span>
             </p>
             {!product.complete && (
               <p className="mt-2 flex items-start gap-1.5 text-2xs text-warn leading-relaxed">
@@ -274,7 +377,7 @@ export function BarcodeScanner({ defaultSlot, onClose, onAdd }: {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Select
               label="Amount basis"
               value={basis}
@@ -293,6 +396,9 @@ export function BarcodeScanner({ defaultSlot, onClose, onAdd }: {
               <p className="text-sm text-ink-3 pb-2.5 tabular">= {Math.round(chosen.calories * n)} kcal</p>
             )}
           </div>
+          <button type="button" onClick={restart} className="text-xs font-semibold text-ink-3 hover:text-ink">
+            ← Scan a different product
+          </button>
         </div>
       )}
     </Modal>
@@ -302,13 +408,13 @@ export function BarcodeScanner({ defaultSlot, onClose, onAdd }: {
 function ScanProblem({ title, body, onRetry }: { title: string; body: string; onRetry: () => void }) {
   return (
     <div className="text-center py-6">
-      <span className={cn('mx-auto h-12 w-12 rounded-2xl grid place-items-center bg-warn-soft text-warn')}>
+      <span className="mx-auto h-12 w-12 rounded-2xl grid place-items-center bg-warn-soft text-warn">
         <AlertTriangle size={22} />
       </span>
       <p className="mt-3 font-bold">{title}</p>
       <p className="mt-1.5 text-sm text-ink-3 leading-relaxed max-w-sm mx-auto">{body}</p>
       <Button variant="outline" className="mt-4" onClick={onRetry} icon={<ScanBarcode size={15} />}>
-        Scan again
+        Try another barcode
       </Button>
     </div>
   );

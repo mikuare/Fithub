@@ -34,7 +34,7 @@ export function Tabs({
       ref={ref}
       role="tablist"
       onKeyDown={onKeyDown}
-      className={cn('flex gap-1 p-1 bg-surface-2 border border-line rounded-2xl overflow-x-auto no-scrollbar', className)}
+      className={cn('flex w-full max-w-full gap-1 overflow-x-auto overscroll-x-contain p-1 bg-surface-2 border border-line rounded-2xl no-scrollbar', className)}
     >
       {items.map((item) => {
         const active = item.key === value;

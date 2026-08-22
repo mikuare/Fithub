@@ -10,6 +10,10 @@ import { useData } from '@/store/data';
 import { cn, matches } from '@/lib/utils';
 import type { Equipment, Exercise, ExerciseCategory } from '@/types';
 
+/* A stable reference: returning a fresh array from a Zustand selector makes
+   every snapshot compare unequal, which re-renders forever. */
+const DEFAULT_EQUIPMENT: Equipment[] = ['bodyweight'];
+
 export function ExercisePickerModal({
   open, onClose, onPick, title = 'Add an exercise', excludeSlugs = [], preferCategory,
 }: {
@@ -20,7 +24,7 @@ export function ExercisePickerModal({
   excludeSlugs?: string[];
   preferCategory?: ExerciseCategory;
 }) {
-  const equipment = useData((s) => s.fitnessProfile?.equipment ?? (['bodyweight'] as Equipment[]));
+  const equipment = useData((s) => s.fitnessProfile?.equipment ?? DEFAULT_EQUIPMENT);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<ExerciseCategory | 'all'>(preferCategory ?? 'all');
   const [onlyMyEquipment, setOnlyMyEquipment] = useState(true);

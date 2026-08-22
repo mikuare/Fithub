@@ -21,11 +21,15 @@ import { formatDate, relativeDay } from '@/lib/date';
 import { titleCase } from '@/lib/utils';
 import type { Equipment } from '@/types';
 
+/* A stable reference: returning a fresh array from a Zustand selector makes
+   every snapshot compare unequal, which re-renders forever. */
+const DEFAULT_EQUIPMENT: Equipment[] = ['bodyweight'];
+
 export default function ExerciseDetail() {
   const { slug = '' } = useParams();
   const navigate = useNavigate();
   const exercise = getExercise(slug);
-  const equipment = useData((s) => s.fitnessProfile?.equipment ?? (['bodyweight'] as Equipment[]));
+  const equipment = useData((s) => s.fitnessProfile?.equipment ?? DEFAULT_EQUIPMENT);
   const experience = useData((s) => s.fitnessProfile?.experience ?? 'beginner');
   const units = useData((s) => s.preferences?.units ?? 'metric');
   const records = useData((s) => s.records);

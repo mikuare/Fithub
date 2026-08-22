@@ -107,7 +107,7 @@ export default function Nutrition() {
   ];
 
   return (
-    <div className="space-y-5 max-w-5xl">
+    <div className="min-w-0 max-w-5xl space-y-5">
       <PageHeader
         eyebrow="Nutrition"
         title="Fuel for the training"
@@ -136,9 +136,9 @@ export default function Nutrition() {
         </button>
       </div>
 
-      <div className="grid lg:grid-cols-[320px,1fr] gap-4">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[320px,minmax(0,1fr)]">
         {/* Summary */}
-        <aside className="space-y-3">
+        <aside className="min-w-0 space-y-3">
           <Card>
             <div className="p-5 text-center">
               <ProgressRing
@@ -160,9 +160,9 @@ export default function Nutrition() {
             <div className="px-5 pb-5 space-y-3">
               {macros.map((m) => (
                 <div key={m.key}>
-                  <div className="flex justify-between text-xs mb-1">
+                  <div className="flex min-w-0 justify-between gap-3 text-xs mb-1">
                     <span className="text-ink-2">{m.label}</span>
-                    <span className="tabular text-ink-3">{Math.round(m.value)} / {m.target} {m.unit}</span>
+                    <span className="shrink-0 tabular text-ink-3">{Math.round(m.value)} / {m.target} {m.unit}</span>
                   </div>
                   <div className="h-2 rounded-full bg-surface-3 overflow-hidden">
                     <div className="h-full rounded-full transition-[width] duration-500"
@@ -275,7 +275,7 @@ export default function Nutrition() {
         </aside>
 
         {/* Meals */}
-        <div className="space-y-3">
+        <div className="min-w-0 space-y-3">
           {SLOTS.map((slot) => {
             const items = dayLogs.filter((n) => n.slot === slot.key);
             const slotCalories = items.reduce((a, n) => a + n.calories * n.servings, 0);
