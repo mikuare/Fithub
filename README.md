@@ -77,10 +77,42 @@ Then run the SQL in `supabase/migrations/` **in order** against your project:
 Restart the dev server. The app switches over automatically, and Google sign-in
 becomes available.
 
-> **Honest note:** the Supabase adapter and the migrations are written against the
-> same column names as the TypeScript model and are exercised by the type system,
-> but they have not been run against a live Supabase project in this build. The local
-> adapter is the one covered end to end by the test suite.
+> **Honest note:** the migrations have been pushed to a live Supabase project and the
+> app has been run against it: boot, mode detection, sign-up and the confirm-email and
+> rate-limit error paths are verified live. Row ids are plain UUIDs specifically so the
+> Postgres schema accepts them. The post-sign-in data flows follow the same generic
+> adapter the local backend uses, but a full live pass needs a confirmed user — do one
+> manual sign-up → onboarding → workout after configuring auth (see Deploying below).
+> The local adapter remains the one covered end to end by the test suite, which always
+> runs against it (`.env.test` pins tests to the local backend even when `.env` points
+> at Supabase).
+
+---
+
+## Deploying (Vercel + Supabase)
+
+`vercel.json` is included: SPA rewrites so deep links like `/workout` resolve,
+`sw.js` served uncacheable so PWA updates roll out, and immutable caching for
+hashed assets. The go-live checklist:
+
+1. **Vercel** — import the GitHub repo (Vite is auto-detected) and add
+   `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` as environment variables in
+   the project settings. They are baked in at build time, so redeploy after
+   changing them. The anon key is designed to be public — row-level security is
+   the boundary, not the key.
+2. **Supabase auth emails** — the built-in mailer sends only a handful of
+   confirmation emails per hour, which will lock real users out. Either disable
+   *Confirm email* (Authentication → Sign In / Providers → Email) for launch, or
+   connect custom SMTP (Authentication → Emails). This is the single most common
+   way a Supabase launch breaks.
+3. **Auth URLs** — set the Site URL to the Vercel domain and add it to the
+   redirect allow-list (Authentication → URL Configuration), so confirmation
+   links and OAuth land on the deployed app instead of localhost.
+4. **Google sign-in (optional)** — the provider is off by default; configure it
+   in Authentication → Providers with Google Cloud OAuth credentials, or leave
+   it and users simply use email.
+5. **Smoke test** — sign up once on the deployed URL and run onboarding through
+   a first workout. That exercises the real insert path for every core table.
 
 ---
 
@@ -368,7 +400,10 @@ React 18 · TypeScript (strict, `noUnusedLocals`, `noUnusedParameters`) · Vite 
 Tailwind CSS 3 · Zustand · React Router 6 · Recharts · Lucide · Vitest ·
 Testing Library · Supabase (optional)
 
-**Bundle:** ~90 kB gzipped for the entry chunk, with every page code-split. Icons are
+**Bundle:** ~90 kB gzipped for the entry chunk in a local-only build, with every
+page code-split. When Supabase credentials are present at build time the entry
+grows to ~147 kB — Vite can no longer dead-code-eliminate the Supabase client,
+which is the correct trade for a live backend. Icons are
 imported through an explicit registry rather than a namespace import — the namespace
 version pulled 778 kB of unused icons into the bundle; the registry is 57 kB.
 

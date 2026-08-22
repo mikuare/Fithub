@@ -65,8 +65,11 @@ const EQUIPMENT_SEED: Array<[string, string, string]> = [
 ];
 
 export async function seedIfEmpty(): Promise<void> {
-  if (localStorage.getItem(SEED_FLAG)) return;
   const db = backend();
+  // Supabase seeds through supabase/migrations/0004_seed.sql — these demo rows
+  // use non-uuid ids and belong to the browser database only.
+  if (db.kind !== 'local') return;
+  if (localStorage.getItem(SEED_FLAG)) return;
   const existing = await db.listAll('gyms');
   if (existing.length) { localStorage.setItem(SEED_FLAG, '1'); return; }
 

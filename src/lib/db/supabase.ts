@@ -32,12 +32,29 @@ export class SupabaseBackend implements Backend {
     });
     if (error) throw new AuthError(error.message, error.message.match(/already/i) ? 'email_taken' : 'unknown');
     if (!data.user) throw new AuthError('Check your inbox to confirm your email, then sign in.', 'unknown');
+    // With email confirmation on, Supabase obfuscates repeat sign-ups as a
+    // user with no identities rather than an error.
+    if ((data.user.identities?.length ?? 0) === 0) {
+      throw new AuthError('An account with that email already exists. Sign in instead.', 'email_taken');
+    }
+    // No session yet means the project requires email confirmation; without a
+    // session, RLS would reject the profile write anyway — say so plainly.
+    if (!data.session) {
+      throw new AuthError('Almost there — confirm your email from the message we just sent you, then sign in.', 'unknown');
+    }
     return this.ensureProfile(data.user.id, data.user.email ?? input.email, input.full_name, input.role);
   }
 
   async signIn(email: string, password: string): Promise<Profile> {
     const { data, error } = await this.client.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
-    if (error) throw new AuthError('Email or password is incorrect.', 'invalid_credentials');
+    if (error) {
+      // "Wrong password" and "unknown email" stay one message; an unconfirmed
+      // email is a different, fixable situation and deserves the real reason.
+      if (/confirm/i.test(error.message)) {
+        throw new AuthError('Confirm your email first — check your inbox for the link we sent.', 'invalid_credentials');
+      }
+      throw new AuthError('Email or password is incorrect.', 'invalid_credentials');
+    }
     const profile = await this.currentProfile();
     if (profile) return profile;
     return this.ensureProfile(data.user.id, data.user.email ?? email, data.user.user_metadata?.full_name ?? '', 'member');
@@ -46,7 +63,9 @@ export class SupabaseBackend implements Backend {
   async signInWithGoogle(): Promise<void> {
     const { error } = await this.client.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      // Land on the root: the client parses the session from the URL there.
+      // The origin must be allow-listed in Supabase Auth → URL Configuration.
+      options: { redirectTo: `${window.location.origin}/` },
     });
     if (error) throw new AuthError(error.message);
   }
