@@ -91,7 +91,7 @@ export default function ProfilePage() {
           <input
             ref={avatarInputRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+            accept="image/*,.jpg,.jpeg,.jfif,.png,.webp,.avif,.gif,.bmp,.heic,.heif"
             className="sr-only"
             onChange={(event) => void saveAvatar(event.target.files?.[0])}
             aria-label="Choose a profile photo"
@@ -133,6 +133,9 @@ export default function ProfilePage() {
                 </Button>
               )}
             </div>
+            <p className="mt-2 text-2xs text-ink-3">
+              JPG, JPEG, PNG, WebP and other common images · up to 25 MB. FitHub crops and compresses the photo for you.
+            </p>
           </div>
         </div>
       </Card>

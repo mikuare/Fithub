@@ -10,7 +10,7 @@
  *
  * Bump VERSION to invalidate every cache in one move.
  */
-const VERSION = 'fithub-v1';
+const VERSION = 'fithub-v2-camera';
 const SHELL = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', (event) => {

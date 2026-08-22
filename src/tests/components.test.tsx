@@ -162,7 +162,13 @@ describe('profile photos', () => {
 
   it('rejects non-images and oversized phone photos before decoding', () => {
     expect(profileImageProblem({ type: 'application/pdf', size: 100 })).toMatch(/image file/i);
-    expect(profileImageProblem({ type: 'image/jpeg', size: 10_000_001 })).toMatch(/10 MB/i);
+    expect(profileImageProblem({ type: 'image/jpeg', size: 25_000_001 })).toMatch(/25 MB/i);
     expect(profileImageProblem({ type: 'image/png', size: 500_000 })).toBeNull();
+  });
+
+  it('accepts JPG files from phone pickers even when their MIME type is missing or generic', () => {
+    expect(profileImageProblem({ name: 'portrait.jpg', type: '', size: 2_000_000 })).toBeNull();
+    expect(profileImageProblem({ name: 'IMG_2048.JPEG', type: 'application/octet-stream', size: 8_000_000 })).toBeNull();
+    expect(profileImageProblem({ name: 'not-a-photo.pdf', type: '', size: 100 })).toMatch(/JPG/i);
   });
 });

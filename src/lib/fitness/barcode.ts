@@ -48,7 +48,14 @@ export interface ScannedProduct {
 }
 
 function num(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  // Community records occasionally serialise a numeric nutrient as a string.
+  // Accept plain numeric strings, but never coerce blanks or strings with units.
+  if (typeof value === 'string' && /^-?(?:\d+(?:\.\d*)?|\.\d+)$/.test(value.trim())) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 function macros(n: Record<string, unknown>, suffix: '100g' | 'serving'): ScannedMacros {

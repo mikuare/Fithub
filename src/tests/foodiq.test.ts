@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { CAMERA_BLOCKER_COPY, diagnoseCamera } from '@/lib/fitness/scanEngine';
+import {
+  CAMERA_BLOCKER_COPY, describeCameraFailure, diagnoseCamera, requestCameraStream,
+} from '@/lib/fitness/scanEngine';
 import {
   foodBenefits, foodProfile, goalEatingStrategy, goalFit, rankFoodsForGoal,
   remainingMacros, suggestFoods,
@@ -194,6 +196,45 @@ describe('camera diagnosis', () => {
   });
 });
 
+describe('mobile camera startup', () => {
+  const stream = { getTracks: () => [] } as unknown as MediaStream;
+
+  it('falls back to an unconstrained camera when a phone rejects rear-camera constraints', async () => {
+    const calls: MediaStreamConstraints[] = [];
+    const getUserMedia = async (constraints: MediaStreamConstraints) => {
+      calls.push(constraints);
+      if (calls.length === 1) {
+        throw Object.assign(new Error('unsupported constraint'), { name: 'OverconstrainedError' });
+      }
+      return stream;
+    };
+
+    await expect(requestCameraStream(getUserMedia)).resolves.toBe(stream);
+    expect(calls).toHaveLength(2);
+    expect(calls[0].video).toMatchObject({ facingMode: { ideal: 'environment' } });
+    expect(calls[1]).toEqual({ video: true, audio: false });
+  });
+
+  it('does not show a second permission prompt after access is denied', async () => {
+    let calls = 0;
+    const denied = Object.assign(new Error('denied'), { name: 'NotAllowedError' });
+    const getUserMedia = async () => { calls += 1; throw denied; };
+
+    await expect(requestCameraStream(getUserMedia)).rejects.toBe(denied);
+    expect(calls).toBe(1);
+    expect(describeCameraFailure(denied)).toMatchObject({
+      kind: 'denied',
+      title: 'Camera permission was blocked',
+    });
+  });
+
+  it('gives specific recovery advice when another app owns the camera', () => {
+    const busy = Object.assign(new Error('busy'), { name: 'NotReadableError' });
+    expect(describeCameraFailure(busy)).toMatchObject({ kind: 'busy' });
+    expect(describeCameraFailure(busy).body).toMatch(/other apps/i);
+  });
+});
+
 describe('mapOffProduct', () => {
   const full = {
     status: 1,
@@ -226,6 +267,20 @@ describe('mapOffProduct', () => {
     expect(p.per100g.protein_g).toBeNull();
     expect(p.complete).toBe(false);
     expect(p.perServing).toBeNull();
+  });
+
+  it('keeps valid numeric strings from community nutrition records', () => {
+    const p = mapOffProduct({
+      status: 1,
+      product: {
+        product_name: 'String values',
+        nutriments: {
+          'energy-kcal_100g': '120', proteins_100g: '8.5', carbohydrates_100g: '14', fat_100g: '3.2',
+        },
+      },
+    })!;
+    expect(p.per100g).toEqual({ calories: 120, protein_g: 8.5, carbs_g: 14, fat_g: 3.2 });
+    expect(p.complete).toBe(true);
   });
 
   it('returns null for unknown products and nameless entries', () => {

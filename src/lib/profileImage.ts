@@ -1,11 +1,23 @@
-const MAX_UPLOAD_BYTES = 10_000_000;
+const MAX_UPLOAD_BYTES = 25_000_000;
 const MAX_STORED_CHARACTERS = 700_000;
 const AVATAR_SIZE = 384;
+const IMAGE_FILE_EXTENSION = /\.(?:avif|bmp|gif|heic|heif|jfif|jpe|jpeg|jpg|png|webp)$/i;
+
+type ProfileImageCandidate = Pick<File, 'size' | 'type'> & { name?: string };
 
 /** Returns user-facing validation copy, or null when the file is acceptable. */
-export function profileImageProblem(file: Pick<File, 'size' | 'type'>): string | null {
-  if (!file.type.startsWith('image/')) return 'Choose an image file such as JPG, PNG or WebP.';
-  if (file.size > MAX_UPLOAD_BYTES) return 'That photo is over 10 MB. Choose a smaller image.';
+export function profileImageProblem(file: ProfileImageCandidate): string | null {
+  if (file.size > MAX_UPLOAD_BYTES) return 'That photo is over 25 MB. Choose a smaller image.';
+
+  // Files chosen from iCloud, Google Photos and some Android galleries can
+  // arrive with no MIME type (or application/octet-stream) even when they are
+  // ordinary .jpg files. The browser still verifies the content by decoding it
+  // below, so a recognised extension is a safe fallback for those pickers.
+  const imageMime = file.type.toLowerCase().startsWith('image/');
+  const imageName = typeof file.name === 'string' && IMAGE_FILE_EXTENSION.test(file.name.trim());
+  if (!imageMime && !imageName) {
+    return 'Choose an image file: JPG, JPEG, PNG, WebP, AVIF, GIF, BMP, HEIC or HEIF.';
+  }
   return null;
 }
 
@@ -24,7 +36,7 @@ export async function prepareProfileImage(file: File): Promise<string> {
     image.decoding = 'async';
     await new Promise<void>((resolve, reject) => {
       image.onload = () => resolve();
-      image.onerror = () => reject(new Error('This image format could not be opened. Try JPG, PNG or WebP.'));
+      image.onerror = () => reject(new Error('This image could not be opened. Try a JPG, JPEG, PNG, WebP or another image supported by your phone.'));
       image.src = url;
     });
 
