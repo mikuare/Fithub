@@ -13,7 +13,7 @@ import { EmptyState } from '@/components/ui/States';
 import { Confetti } from '@/components/Confetti';
 import { useData, selectTier } from '@/store/data';
 import {
-  PLANS, PAYMENT_METHODS, TIER_LABEL, TIER_RANK, formatPrice, priceFor, yearlySavingsPct,
+  PLANS, PAYMENT_METHODS, TIER_LABEL, TIER_RANK, formatPrice, periodEndFrom, priceFor, yearlySavingsPct,
 } from '@/lib/billing/plans';
 import {
   cvcValid, detectBrand, digitsOnly, expiryValid, formatCardNumber, last4, luhnValid,
@@ -61,7 +61,9 @@ export default function Pricing() {
           <FlaskConical size={16} className="shrink-0 mt-0.5 text-info" />
           <p className="text-xs text-ink-2 leading-relaxed">
             <span className="font-semibold">Sandbox billing.</span> No payment provider is connected yet,
-            so checkout validates your details locally, activates the plan, and moves no money.
+            so checkout validates your details locally, saves the plan to your account, and moves no money.
+            Monthly access lasts one calendar month; yearly access lasts twelve months. It does not charge or
+            extend itself automatically while billing is in sandbox mode.
             When Stripe / PayMongo are wired to the Supabase backend, this same flow charges for real —
             card numbers are never stored either way, only the brand and last four digits.
           </p>
@@ -87,7 +89,9 @@ export default function Pricing() {
                   ? `expired ${formatDate(subscription.current_period_end, 'medium')}`
                   : subscription.cancel_at_period_end
                     ? `ends ${formatDate(subscription.current_period_end, 'medium')} — no further charges`
-                    : `renews ${formatDate(subscription.current_period_end, 'medium')}`}
+                    : subscription.sandbox
+                      ? `active until ${formatDate(subscription.current_period_end, 'medium')} — no automatic charge`
+                      : `renews ${formatDate(subscription.current_period_end, 'medium')}`}
               </p>
               {subscription.payment_method && (
                 <p className="mt-1 text-2xs text-ink-3 inline-flex items-center gap-1.5">
@@ -324,6 +328,7 @@ function CheckoutModal({ tier, cycle, currency, onClose }: {
 }) {
   const checkout = useData((s) => s.checkout);
   const price = priceFor(tier, cycle, currency);
+  const accessUntil = periodEndFrom(today(), cycle);
 
   const [step, setStep] = useState<'method' | 'details' | 'done'>('method');
   const [kind, setKind] = useState<PaymentMethodKind>('card');
@@ -372,7 +377,7 @@ function CheckoutModal({ tier, cycle, currency, onClose }: {
       open
       onClose={onClose}
       title={step === 'done' ? 'You are all set' : `FitHub ${TIER_LABEL[tier]} — ${cycle}`}
-      description={step === 'done' ? undefined : `${formatPrice(price, currency)} per ${cycle === 'monthly' ? 'month' : 'year'} · sandbox, no real charge`}
+      description={step === 'done' ? undefined : `${formatPrice(price, currency)} per ${cycle === 'monthly' ? 'month' : 'year'} · no real charge · access until ${formatDate(accessUntil, 'medium')}`}
       size="md"
     >
       {step === 'method' && (
@@ -463,11 +468,12 @@ function CheckoutModal({ tier, cycle, currency, onClose }: {
           <div className="rounded-xl bg-surface-2 border border-line p-3.5 text-sm space-y-1">
             <div className="flex justify-between"><span className="text-ink-3">Plan</span><span className="font-semibold">FitHub {TIER_LABEL[tier]}</span></div>
             <div className="flex justify-between"><span className="text-ink-3">Billing</span><span className="font-semibold capitalize">{cycle}</span></div>
-            <div className="flex justify-between"><span className="text-ink-3">Due today</span><span className="font-black tabular">{formatPrice(price, currency)}</span></div>
+            <div className="flex justify-between"><span className="text-ink-3">Access until</span><span className="font-semibold">{formatDate(accessUntil, 'medium')}</span></div>
+            <div className="flex justify-between"><span className="text-ink-3">Sandbox amount</span><span className="font-black tabular">{formatPrice(price, currency)}</span></div>
           </div>
 
           <Button block size="lg" loading={busy} onClick={() => void pay()} icon={<Lock size={15} />}>
-            Pay {formatPrice(price, currency)} — sandbox
+            Activate {TIER_LABEL[tier]} — sandbox
           </Button>
         </div>
       )}
@@ -481,7 +487,7 @@ function CheckoutModal({ tier, cycle, currency, onClose }: {
           <h3 className="mt-4 text-xl font-black">Welcome to FitHub {TIER_LABEL[tier]}</h3>
           <p className="mt-2 text-sm text-ink-2 leading-relaxed">
             Everything is unlocked right now — Body Map, reviews{tier === 'pro' ? ', FitCoach' : ''} and unlimited goals.
-            The receipt is in your payment history, marked sandbox.
+            Your {cycle} access is saved through {formatDate(accessUntil, 'medium')}. No real payment or automatic renewal occurred.
           </p>
           <Button className="mt-6" block onClick={onClose}>Start exploring</Button>
         </div>

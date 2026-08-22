@@ -256,10 +256,13 @@ function MobileTabBar() {
   );
 }
 
-export function Avatar({ profile, size = 36 }: { profile: { full_name: string; avatar_color: string }; size?: number }) {
+export function Avatar({ profile, size = 36 }: {
+  profile: { full_name: string; avatar_color: string; avatar_data_url?: string | null };
+  size?: number;
+}) {
   return (
     <span
-      className="shrink-0 grid place-items-center rounded-full font-bold text-bg"
+      className="shrink-0 grid place-items-center overflow-hidden rounded-full font-bold text-bg"
       style={{
         width: size, height: size, fontSize: size * 0.38,
         background: `linear-gradient(135deg, ${profile.avatar_color}, ${profile.avatar_color}bb)`,
@@ -267,7 +270,9 @@ export function Avatar({ profile, size = 36 }: { profile: { full_name: string; a
       }}
       aria-hidden
     >
-      {initials(profile.full_name)}
+      {profile.avatar_data_url ? (
+        <img src={profile.avatar_data_url} alt="" className="h-full w-full object-cover" />
+      ) : initials(profile.full_name)}
     </span>
   );
 }

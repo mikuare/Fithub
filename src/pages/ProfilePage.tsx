@@ -1,5 +1,8 @@
-import { useMemo, useState } from 'react';
-import { Save, Dumbbell, Target, Ruler, Calendar, Award, Pencil, Building2, IdCard } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import {
+  Save, Dumbbell, Target, Ruler, Calendar, Award, Pencil, Building2, IdCard,
+  Camera, Loader2, Trash2,
+} from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
@@ -17,6 +20,7 @@ import { bmi, bmiBand } from '@/lib/fitness/calculations';
 import { displayLength, displayWeight, inputLengthToCm, inputWeightToKg, lengthUnit, weightUnit } from '@/lib/fitness/units';
 import { ageFrom, DAY_SHORT, formatClock, formatDate, nowISO, today } from '@/lib/date';
 import { titleCase } from '@/lib/utils';
+import { prepareProfileImage } from '@/lib/profileImage';
 import { toast } from '@/store/toast';
 import { ROLE_LABEL, type Equipment, type Experience, type GoalKind, type Units, type Weekday } from '@/types';
 
@@ -36,6 +40,8 @@ export default function ProfilePage() {
   const [editingName, setEditingName] = useState(false);
   const [name, setName] = useState(profile?.full_name ?? '');
   const [editingFitness, setEditingFitness] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const units = fitnessProfile?.units ?? 'metric';
   const bmiValue = bmi(fitnessProfile?.weight_kg ?? null, fitnessProfile?.height_cm ?? null);
@@ -48,6 +54,21 @@ export default function ProfilePage() {
 
   if (!profile) return null;
 
+  const saveAvatar = async (file: File | undefined) => {
+    if (!file) return;
+    setAvatarBusy(true);
+    try {
+      const avatar_data_url = await prepareProfileImage(file);
+      await updateProfile({ avatar_data_url });
+      toast.success('Profile photo updated');
+    } catch (error) {
+      toast.error('Could not use that photo', error instanceof Error ? error.message : 'Choose another image and try again.');
+    } finally {
+      setAvatarBusy(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className="space-y-5 max-w-4xl">
       <PageHeader eyebrow="Account" title="Profile" />
@@ -55,7 +76,26 @@ export default function ProfilePage() {
       {/* Identity */}
       <Card>
         <div className="p-5 flex flex-wrap items-center gap-4">
-          <Avatar profile={profile} size={64} />
+          <button
+            type="button"
+            onClick={() => avatarInputRef.current?.click()}
+            disabled={avatarBusy}
+            aria-label={profile.avatar_data_url ? 'Change profile photo' : 'Upload profile photo'}
+            className="group relative shrink-0 rounded-full disabled:opacity-60"
+          >
+            <Avatar profile={profile} size={64} />
+            <span className="absolute inset-0 grid place-items-center rounded-full bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+              {avatarBusy ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
+            </span>
+          </button>
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+            className="sr-only"
+            onChange={(event) => void saveAvatar(event.target.files?.[0])}
+            aria-label="Choose a profile photo"
+          />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-bold truncate">{profile.full_name}</h2>
@@ -70,6 +110,28 @@ export default function ProfilePage() {
               <Badge tone="brand">{ROLE_LABEL[profile.role]}</Badge>
               <Badge tone="muted">Joined {formatDate(profile.created_at.slice(0, 10), 'medium')}</Badge>
               {profile.onboarded && <Badge tone="success">Profile complete</Badge>}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                loading={avatarBusy}
+                onClick={() => avatarInputRef.current?.click()}
+                icon={<Camera size={13} />}
+              >
+                {profile.avatar_data_url ? 'Change photo' : 'Upload photo'}
+              </Button>
+              {profile.avatar_data_url && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={avatarBusy}
+                  onClick={() => void updateProfile({ avatar_data_url: null }).then(() => toast.info('Profile photo removed'))}
+                  icon={<Trash2 size={13} />}
+                >
+                  Remove
+                </Button>
+              )}
             </div>
           </div>
         </div>

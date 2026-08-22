@@ -135,6 +135,15 @@ export const useData = create<DataState>((set, get) => ({
   load: async (userId, role) => {
     set({ loading: true, error: null, userId });
     const db = backend();
+    const loadIssues: string[] = [];
+    const read = async <T,>(label: string, request: Promise<T>, fallback: T): Promise<T> => {
+      try {
+        return await request;
+      } catch {
+        loadIssues.push(label);
+        return fallback;
+      }
+    };
     try {
       const [
         fitnessProfile, preferences, nutritionTargets, subscription, payments,
@@ -144,45 +153,45 @@ export const useData = create<DataState>((set, get) => ({
         memberships, checkins, trainerClients, trainerNotes,
         challenges, gyms, plans, equipment, maintenance,
       ] = await Promise.all([
-        db.get('fitness_profiles', userId),
-        db.get('user_preferences', userId),
-        db.get('nutrition_targets', userId),
-        db.get('subscriptions', userId),
-        db.list('payment_records', userId),
-        db.list('assessments', userId),
-        db.list('goals', userId),
-        db.list('programs', userId),
-        db.list('workout_sessions', userId),
-        db.list('workout_sets', userId),
-        db.list('personal_records', userId),
-        db.list('recovery_logs', userId),
-        db.list('niggles', userId),
-        db.list('body_measurements', userId),
-        db.list('progress_photos', userId),
-        db.list('habit_definitions', userId),
-        db.list('habit_logs', userId),
-        db.list('nutrition_logs', userId),
-        db.list('user_achievements', userId),
-        db.list('challenge_members', userId),
-        db.list('friendships', userId),
-        db.list('feed_posts', userId),
-        db.list('notifications', userId),
-        db.list('messages', userId),
-        db.list('memberships', userId),
-        db.list('gym_checkins', userId),
-        db.list('trainer_clients', userId),
-        db.list('trainer_notes', userId),
-        db.listAll('challenges'),
-        db.listAll('gyms'),
-        db.listAll('membership_plans'),
-        db.listAll('gym_equipment'),
-        db.listAll('maintenance_logs'),
+        read('fitness profile', db.get('fitness_profiles', userId), null),
+        read('preferences', db.get('user_preferences', userId), null),
+        read('nutrition targets', db.get('nutrition_targets', userId), null),
+        read('subscription', db.get('subscriptions', userId), null),
+        read('payment history', db.list('payment_records', userId), []),
+        read('assessments', db.list('assessments', userId), []),
+        read('goals', db.list('goals', userId), []),
+        read('programmes', db.list('programs', userId), []),
+        read('workout sessions', db.list('workout_sessions', userId), []),
+        read('workout sets', db.list('workout_sets', userId), []),
+        read('records', db.list('personal_records', userId), []),
+        read('recovery', db.list('recovery_logs', userId), []),
+        read('niggles', db.list('niggles', userId), []),
+        read('measurements', db.list('body_measurements', userId), []),
+        read('progress photos', db.list('progress_photos', userId), []),
+        read('habits', db.list('habit_definitions', userId), []),
+        read('habit logs', db.list('habit_logs', userId), []),
+        read('nutrition log', db.list('nutrition_logs', userId), []),
+        read('achievements', db.list('user_achievements', userId), []),
+        read('challenges joined', db.list('challenge_members', userId), []),
+        read('friendships', db.list('friendships', userId), []),
+        read('feed', db.list('feed_posts', userId), []),
+        read('notifications', db.list('notifications', userId), []),
+        read('messages', db.list('messages', userId), []),
+        read('memberships', db.list('memberships', userId), []),
+        read('check-ins', db.list('gym_checkins', userId), []),
+        read('trainer clients', db.list('trainer_clients', userId), []),
+        read('trainer notes', db.list('trainer_notes', userId), []),
+        read('challenges', db.listAll('challenges'), []),
+        read('gyms', db.listAll('gyms'), []),
+        read('membership plans', db.listAll('membership_plans'), []),
+        read('gym equipment', db.listAll('gym_equipment'), []),
+        read('maintenance', db.listAll('maintenance_logs'), []),
       ]);
 
       const prefs = preferences ?? defaultPreferences(userId, fitnessProfile?.units ?? 'metric');
-      if (!preferences) await db.upsert('user_preferences', prefs);
+      if (!preferences) await read('saving preferences', db.upsert('user_preferences', prefs), prefs);
       const targets = nutritionTargets ?? defaultNutritionTargets(userId);
-      if (!nutritionTargets) await db.upsert('nutrition_targets', targets);
+      if (!nutritionTargets) await read('saving nutrition targets', db.upsert('nutrition_targets', targets), targets);
 
       set({
         fitnessProfile, preferences: prefs, nutritionTargets: targets, subscription, payments,
@@ -193,15 +202,26 @@ export const useData = create<DataState>((set, get) => ({
         challenges, plans, equipment, maintenance,
         gym: gyms.find((g) => g.id === DEMO_GYM_ID) ?? gyms[0] ?? null,
         loading: false, loaded: true,
+        error: loadIssues.length
+          ? `Some account data could not be refreshed: ${loadIssues.join(', ')}.`
+          : null,
       });
 
       // Staff-facing roles need gym-wide reads. In the Supabase backend these
       // are gated by row-level security policies, not by this check alone.
       if (role !== 'member') {
         const [directory, allMemberships, allCheckins, auditLogs] = await Promise.all([
-          db.listAll('profiles'), db.listAll('memberships'), db.listAll('gym_checkins'), db.listAll('audit_logs'),
+          read('member directory', db.listAll('profiles'), []),
+          read('all memberships', db.listAll('memberships'), []),
+          read('all check-ins', db.listAll('gym_checkins'), []),
+          read('audit logs', db.listAll('audit_logs'), []),
         ]);
-        set({ directory, allMemberships, allCheckins, auditLogs });
+        set({
+          directory, allMemberships, allCheckins, auditLogs,
+          error: loadIssues.length
+            ? `Some account data could not be refreshed: ${loadIssues.join(', ')}.`
+            : null,
+        });
       }
 
       await get().recalcGoals();

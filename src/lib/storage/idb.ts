@@ -65,14 +65,13 @@ function fallback(): Map<string, StoredRecord> {
   return memory;
 }
 
-let flushTimer: ReturnType<typeof setTimeout> | undefined;
 function persistFallback() {
-  if (flushTimer) clearTimeout(flushTimer);
-  flushTimer = setTimeout(() => {
-    try {
-      localStorage.setItem(FALLBACK_KEY, JSON.stringify([...fallback().values()]));
-    } catch { /* quota exceeded — data stays in memory for this session */ }
-  }, 200);
+  // This path is used only when IndexedDB is unavailable. Persist before the
+  // write resolves so an immediate refresh cannot lose a newly generated
+  // programme or a just-activated sandbox subscription.
+  try {
+    localStorage.setItem(FALLBACK_KEY, JSON.stringify([...fallback().values()]));
+  } catch { /* quota exceeded — data stays in memory for this session */ }
 }
 
 /* ---------------- public API ---------------- */

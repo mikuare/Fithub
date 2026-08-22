@@ -35,6 +35,9 @@ export interface Profile {
   email: string;
   full_name: string;
   avatar_color: string;
+  /** Small, client-compressed profile photo. Optional for rows created before
+   *  the avatar migration and null when the user prefers initials. */
+  avatar_data_url?: string | null;
   role: Role;
   gym_id: ID | null;
   created_at: ISODateTime;

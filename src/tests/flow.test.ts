@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAuth } from '@/store/auth';
 import { useData } from '@/store/data';
 import { backend } from '@/lib/db';
@@ -11,6 +11,7 @@ import { computeFitScore } from '@/lib/fitness/fitscore';
 import { computeStreak } from '@/lib/fitness/streaks';
 import { uid } from '@/lib/id';
 import { addDays, nowISO, today } from '@/lib/date';
+import { periodEndFrom } from '@/lib/billing/plans';
 import type { Goal, WorkoutSet } from '@/types';
 
 /**
@@ -185,6 +186,70 @@ describe('the core FitHub loop', () => {
 
     const right = await useAuth.getState().signIn('DUPE@example.com', 'correct-horse-9');
     expect(right).toBe(true);
+  });
+
+  it('durably saves a programme and the selected sandbox billing period before refresh', async () => {
+    await useAuth.getState().signUp({
+      email: 'persist@example.com', password: 'correct-horse-9', full_name: 'Persistent User', role: 'member',
+    });
+    const id = useAuth.getState().profile!.id;
+    const fitnessProfile = emptyFitnessProfile(id, 'Persistent');
+    const program = generateProgram(fitnessProfile, id, { seed: 77 });
+    await backend().upsert('fitness_profiles', fitnessProfile);
+    await backend().upsert('programs', program);
+    await useData.getState().load(id, 'member');
+
+    const method = { kind: 'gcash', brand: null, last4: null, wallet_account: '09•• ••• 4567' } as const;
+    const monthly = await useData.getState().checkout({ tier: 'plus', cycle: 'monthly', currency: 'PHP', method });
+    expect(monthly.current_period_end).toBe(periodEndFrom(today(), 'monthly'));
+
+    // jsdom has no IndexedDB, so this is the exact persistence fallback used
+    // by browsers where IDB is blocked. The writes must exist before checkout
+    // resolves; refreshing immediately after success must not lose them.
+    const persisted = JSON.parse(localStorage.getItem('fithub:fallback') ?? '[]') as Array<{
+      collection: string;
+      data: { id?: string; user_id?: string; tier?: string };
+    }>;
+    expect(persisted.some((row) => row.collection === 'programs' && row.data.id === program.id)).toBe(true);
+    expect(persisted.some((row) => row.collection === 'subscriptions' && row.data.user_id === id && row.data.tier === 'plus')).toBe(true);
+
+    useData.getState().reset();
+    await useData.getState().load(id, 'member');
+    expect(useData.getState().programs.some((item) => item.id === program.id && item.active)).toBe(true);
+    expect(useData.getState().subscription?.tier).toBe('plus');
+
+    const yearly = await useData.getState().checkout({ tier: 'pro', cycle: 'yearly', currency: 'PHP', method });
+    expect(yearly.current_period_end).toBe(periodEndFrom(today(), 'yearly'));
+    expect(yearly.current_period_end).not.toBe(monthly.current_period_end);
+  });
+
+  it('still reloads the programme when one optional account query fails', async () => {
+    await useAuth.getState().signUp({
+      email: 'partial-load@example.com', password: 'correct-horse-9', full_name: 'Partial Load', role: 'member',
+    });
+    const id = useAuth.getState().profile!.id;
+    const fitnessProfile = emptyFitnessProfile(id, 'Partial');
+    const program = generateProgram(fitnessProfile, id, { seed: 88 });
+    const db = backend();
+    await db.upsert('fitness_profiles', fitnessProfile);
+    await db.upsert('programs', program);
+
+    const originalGet = db.get.bind(db);
+    const getSpy = vi.spyOn(db, 'get').mockImplementation((async (collection, key) => {
+      if (collection === 'subscriptions') throw new Error('billing table unavailable');
+      return originalGet(collection, key);
+    }) as typeof db.get);
+
+    useData.getState().reset();
+    try {
+      await useData.getState().load(id, 'member');
+    } finally {
+      getSpy.mockRestore();
+    }
+
+    expect(useData.getState().loaded).toBe(true);
+    expect(useData.getState().programs.some((item) => item.id === program.id)).toBe(true);
+    expect(useData.getState().error).toMatch(/subscription/i);
   });
 
   it('rejects a too-short password', async () => {

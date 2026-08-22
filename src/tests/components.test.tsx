@@ -6,6 +6,8 @@ import { Modal } from '@/components/ui/Modal';
 import { ProgressBar, ProgressRing } from '@/components/ui/Progress';
 import { MuscleMap } from '@/components/MuscleMap';
 import { Button } from '@/components/ui/Button';
+import { Avatar } from '@/components/layout/AppShell';
+import { profileImageProblem } from '@/lib/profileImage';
 
 let reactErrors: string[] = [];
 let error: ReturnType<typeof vi.spyOn>;
@@ -143,5 +145,24 @@ describe('Button', () => {
     const button = screen.getByRole('button');
     expect(button.hasAttribute('disabled')).toBe(true);
     expect(button.getAttribute('aria-busy')).toBe('true');
+  });
+});
+
+describe('profile photos', () => {
+  it('uses initials until a photo is uploaded, then renders the saved image', () => {
+    const { container, rerender } = render(<Avatar profile={{ full_name: 'Alex Rivera', avatar_color: '#B9F227' }} />);
+    expect(container.textContent).toBe('AR');
+    expect(container.querySelector('img')).toBeNull();
+
+    rerender(<Avatar profile={{
+      full_name: 'Alex Rivera', avatar_color: '#B9F227', avatar_data_url: 'data:image/jpeg;base64,dGVzdA==',
+    }} />);
+    expect(container.querySelector('img')?.getAttribute('src')).toMatch(/^data:image\/jpeg/);
+  });
+
+  it('rejects non-images and oversized phone photos before decoding', () => {
+    expect(profileImageProblem({ type: 'application/pdf', size: 100 })).toMatch(/image file/i);
+    expect(profileImageProblem({ type: 'image/jpeg', size: 10_000_001 })).toMatch(/10 MB/i);
+    expect(profileImageProblem({ type: 'image/png', size: 500_000 })).toBeNull();
   });
 });
