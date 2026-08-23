@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/Field';
 import { MuscleMap } from '@/components/MuscleMap';
 import { RestOverlay } from '@/components/workout/RestOverlay';
 import { PlateCalculator } from '@/components/workout/PlateCalculator';
+import { ExerciseVisualGuide } from '@/components/workout/ExerciseVisualGuide';
 import { selectActiveSession, useData } from '@/store/data';
 import { useTimer } from '@/store/timer';
 import { primeAudio } from '@/lib/audio';
@@ -583,6 +584,7 @@ export default function LiveWorkout() {
       <Modal open={showGuide} onClose={() => setShowGuide(false)} title={exercise?.name ?? 'Form guide'} size="lg">
         {exercise && (
           <div className="space-y-5">
+            <ExerciseVisualGuide exercise={exercise} compact />
             <div className="flex justify-center py-2">
               <MuscleMap primary={exercise.primary} secondary={exercise.secondary} view="both" size={92} showLabels />
             </div>

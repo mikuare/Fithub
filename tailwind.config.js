@@ -77,6 +77,26 @@ export default {
           '40%': { transform: 'scale(1.14)' },
           '100%': { transform: 'scale(1)' },
         },
+        /* Hero ambience — slow, low-contrast motion that reads as light
+           rather than as something demanding attention. */
+        'glow-drift': {
+          '0%, 100%': { transform: 'translate3d(0, 0, 0) scale(1)', opacity: '.55' },
+          '50%': { transform: 'translate3d(6%, -7%, 0) scale(1.14)', opacity: '.9' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-8px)' },
+        },
+        /* A light sweep that crosses once, then rests for the remainder
+           of the cycle so it never turns into a strobe. */
+        sheen: {
+          '0%, 12%': { transform: 'translateX(-120%) skewX(-14deg)' },
+          '58%, 100%': { transform: 'translateX(420%) skewX(-14deg)' },
+        },
+        'tier-glow': {
+          '0%, 100%': { boxShadow: '0 0 0 0 rgb(var(--c-brand) / 0.45)' },
+          '70%': { boxShadow: '0 0 0 6px rgb(var(--c-brand) / 0)' },
+        },
         'confetti-fall': {
           '0%': { transform: 'translateY(-10vh) rotate(0deg)', opacity: '1' },
           '100%': { transform: 'translateY(105vh) rotate(720deg)', opacity: '0' },
@@ -89,6 +109,10 @@ export default {
         'slide-up': 'slide-up .28s cubic-bezier(.2,.8,.2,1) both',
         'pulse-ring': 'pulse-ring 1.8s cubic-bezier(.2,.8,.2,1) infinite',
         pop: 'pop .4s cubic-bezier(.2,.8,.2,1)',
+        'glow-drift': 'glow-drift 9s ease-in-out infinite',
+        float: 'float 7s ease-in-out infinite',
+        sheen: 'sheen 6s ease-in-out infinite',
+        'tier-glow': 'tier-glow 2.6s ease-out infinite',
       },
     },
   },

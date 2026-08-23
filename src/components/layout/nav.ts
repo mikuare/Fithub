@@ -43,6 +43,8 @@ export const NAV: NavSection[] = [
     title: 'Discover',
     items: [
       { to: '/exercises', label: 'Exercises', icon: 'BookOpen' },
+      { to: '/equipment', label: 'My Equipment', icon: 'Wrench' },
+      { to: '/practice', label: 'Practice Builder', icon: 'Sparkles' },
       { to: '/timers', label: 'Timers', icon: 'Timer' },
       { to: '/challenges', label: 'Challenges', icon: 'Flag' },
       { to: '/achievements', label: 'Achievements', icon: 'Award' },

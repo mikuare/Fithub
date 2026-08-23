@@ -1,4 +1,4 @@
-import type { Exercise, ExerciseCategory, MuscleGroup } from '@/types';
+import type { Equipment, Exercise, ExerciseCategory, MuscleGroup } from '@/types';
 
 type Seed = Partial<Exercise> & Pick<Exercise, 'slug' | 'name' | 'category' | 'primary'>;
 
@@ -1784,4 +1784,22 @@ export const EQUIPMENT_LABEL: Record<string, string> = {
   bands: 'Resistance bands', kettlebell: 'Kettlebell', pullup_bar: 'Pull-up bar',
   machine: 'Machine', bodyweight: 'Bodyweight only', medicine_ball: 'Medicine ball',
   jump_rope: 'Jump rope', box: 'Plyo box', rower: 'Rowing machine',
+  ankle_strap: 'Ankle strap', power_twister: 'Power twister', ab_wheel: 'Ab wheel',
+  suspension: 'Suspension trainer', foam_roller: 'Foam roller', stability_ball: 'Stability ball',
+  dip_bars: 'Dip bars', elliptical: 'Elliptical trainer', mat: 'Exercise mat',
+  hand_gripper: 'Hand gripper',
 };
+
+/**
+ * The single list every equipment picker renders, in the order people tend to
+ * think about their kit: bodyweight first, then the big gym pieces, then the
+ * small stuff that lives in a cupboard at home. Onboarding and the profile
+ * editor both read this, so the two can never drift apart again.
+ */
+export const EQUIPMENT_OPTIONS: Equipment[] = [
+  'bodyweight', 'dumbbells', 'barbell', 'bench', 'squat_rack', 'cable', 'machine',
+  'smith', 'kettlebell', 'bands', 'pullup_bar', 'dip_bars', 'treadmill', 'bike',
+  'rower', 'elliptical', 'medicine_ball', 'stability_ball', 'jump_rope', 'box',
+  'ab_wheel', 'ankle_strap', 'power_twister', 'hand_gripper', 'suspension',
+  'foam_roller', 'mat',
+];

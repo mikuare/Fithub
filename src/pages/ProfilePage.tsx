@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Save, Dumbbell, Target, Ruler, Calendar, Award, Pencil, Building2, IdCard,
-  Camera, Loader2, Trash2,
+  Camera, Loader2, Trash2, ArrowRight,
 } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/Button';
@@ -11,18 +12,19 @@ import { Input, Select, ChoiceCard, Label } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
 import { StatTile } from '@/components/dashboard/StatTile';
 import { Avatar } from '@/components/layout/AppShell';
+import { AccountTierBadge } from '@/components/TierBadge';
 import { useAuth } from '@/store/auth';
 import { useData } from '@/store/data';
 import { useFitScore, useStreak } from '@/lib/selectors';
 import { GOAL_LABEL, generateProgram } from '@/lib/fitness/program';
-import { EQUIPMENT_LABEL } from '@/data/exercises';
+import { EQUIPMENT_LABEL, EQUIPMENT_OPTIONS } from '@/data/exercises';
 import { bmi, bmiBand } from '@/lib/fitness/calculations';
 import { displayLength, displayWeight, inputLengthToCm, inputWeightToKg, lengthUnit, weightUnit } from '@/lib/fitness/units';
 import { ageFrom, DAY_SHORT, formatClock, formatDate, nowISO, today } from '@/lib/date';
 import { titleCase } from '@/lib/utils';
 import { prepareProfileImage } from '@/lib/profileImage';
 import { toast } from '@/store/toast';
-import { ROLE_LABEL, type Equipment, type Experience, type GoalKind, type Units, type Weekday } from '@/types';
+import { ROLE_LABEL, type Experience, type GoalKind, type Units, type Weekday } from '@/types';
 
 export default function ProfilePage() {
   const { profile, updateProfile } = useAuth();
@@ -99,6 +101,7 @@ export default function ProfilePage() {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-bold truncate">{profile.full_name}</h2>
+              <AccountTierBadge />
               <button type="button" onClick={() => { setName(profile.full_name); setEditingName(true); }}
                 aria-label="Edit name"
                 className="h-7 w-7 grid place-items-center rounded-lg text-ink-3 hover:text-ink hover:bg-surface-2">
@@ -178,7 +181,12 @@ export default function ProfilePage() {
               </div>
             ))}
             <div className="sm:col-span-2">
-              <dt className="text-ink-3 text-sm mb-1.5">Equipment available</dt>
+              <dt className="flex items-center justify-between gap-3 text-ink-3 text-sm mb-1.5">
+                <span>Equipment available</span>
+                <Link to="/equipment" className="inline-flex items-center gap-1 text-xs font-semibold text-brand-text hover:underline">
+                  How to use it <ArrowRight size={12} aria-hidden />
+                </Link>
+              </dt>
               <dd className="flex flex-wrap gap-1.5">
                 {fitnessProfile.equipment.map((e) => (
                   <Badge key={e} tone="muted" size="sm">{EQUIPMENT_LABEL[e] ?? e}</Badge>
@@ -312,11 +320,6 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-const EQUIPMENT_OPTIONS: Equipment[] = [
-  'bodyweight', 'dumbbells', 'barbell', 'bench', 'squat_rack', 'cable', 'machine',
-  'smith', 'kettlebell', 'bands', 'pullup_bar', 'treadmill', 'bike', 'rower',
-];
 
 function FitnessProfileModal({ onClose, onSave }: {
   onClose: () => void;

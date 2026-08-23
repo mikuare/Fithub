@@ -28,6 +28,23 @@ export function usePrefersReducedMotion(): boolean {
   return useMediaQuery('(prefers-reduced-motion: reduce)');
 }
 
+/** Live connection state. FitHub runs offline, so anything that reaches the
+ *  network has to be able to say so rather than offering a dead link. */
+export function useOnline(): boolean {
+  const [online, setOnline] = useState(() =>
+    typeof navigator === 'undefined' ? true : navigator.onLine);
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
+  }, []);
+  return online;
+}
+
 export function useDebouncedValue<T>(value: T, delay = 200): T {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {

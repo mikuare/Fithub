@@ -30,6 +30,8 @@ const BodyMap = lazy(() => import('@/pages/BodyMap'));
 const Nutrition = lazy(() => import('@/pages/Nutrition'));
 const Habits = lazy(() => import('@/pages/Habits'));
 const Exercises = lazy(() => import('@/pages/Exercises'));
+const EquipmentGuides = lazy(() => import('@/pages/EquipmentGuides'));
+const Practice = lazy(() => import('@/pages/Practice'));
 const ExerciseDetail = lazy(() => import('@/pages/ExerciseDetail'));
 const Timers = lazy(() => import('@/pages/Timers'));
 const Challenges = lazy(() => import('@/pages/Challenges'));
@@ -101,6 +103,8 @@ export default function App() {
             <Route path="/habits" element={<Habits />} />
             <Route path="/exercises" element={<Exercises />} />
             <Route path="/exercises/:slug" element={<ExerciseDetail />} />
+            <Route path="/equipment" element={<EquipmentGuides />} />
+            <Route path="/practice" element={<Practice />} />
             <Route path="/timers" element={<Timers />} />
             <Route path="/challenges" element={<Challenges />} />
             <Route path="/achievements" element={<Achievements />} />

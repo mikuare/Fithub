@@ -57,7 +57,7 @@ export default function Exercises() {
       <PageHeader
         eyebrow="Exercise Library"
         title={`${EXERCISES.length} exercises`}
-        subtitle="Every entry has step-by-step instructions, the mistakes people actually make, safety notes and easier or harder variations."
+        subtitle="Every entry has step-by-step instructions, common mistakes and safety notes. Plus and Pro members also get visual form guides and video references."
       />
 
       <div className="flex flex-wrap gap-2">

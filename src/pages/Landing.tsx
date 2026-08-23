@@ -7,8 +7,7 @@ import {
 } from 'lucide-react';
 import { Logo } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/Button';
-import { MuscleMap } from '@/components/MuscleMap';
-import { ProgressRing } from '@/components/ui/Progress';
+import fithubCover from '@/images/Fithub cover.png';
 import { PLANS, formatPrice, priceFor, yearlySavingsPct } from '@/lib/billing/plans';
 import { HEALTH_DISCLAIMER } from '@/lib/defaults';
 import { cn } from '@/lib/utils';
@@ -150,7 +149,7 @@ export default function Landing() {
             </ul>
           </div>
 
-          <HeroPreview />
+          <HeroCover />
         </div>
       </section>
 
@@ -378,50 +377,52 @@ function SectionHeading({ eyebrow, title, body }: { eyebrow: string; title: stri
   );
 }
 
-/** A static, honest preview of the real dashboard cards. */
-function HeroPreview() {
+function HeroCover() {
   return (
-    <div className="animate-fade-up min-w-0" style={{ animationDelay: '120ms' }}>
-      <div className="card p-5 shadow-lift">
-        {/* Today's focus lives inside the header — a floating overlay here used
-            to cover the card's content at narrower widths. */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3.5 min-w-0">
-            <MuscleMap
-              primary={['chest', 'shoulders']} secondary={['triceps', 'core']}
-              view="front" size={34} className="shrink-0"
-            />
-            <div className="min-w-0">
-              <p className="text-2xs uppercase tracking-widest text-ink-3">Today's focus</p>
-              <p className="text-xl font-bold mt-0.5">Push Day</p>
-              <p className="text-sm text-ink-3 truncate">Chest · Shoulders · Triceps · 58 min</p>
-            </div>
-          </div>
-          <ProgressRing value={82} size={72} stroke={7} label="Recovery 82 of 100">
-            <span className="text-lg font-black tabular leading-none">82</span>
-            <span className="text-[9px] text-ink-3 uppercase tracking-wide mt-0.5">Ready</span>
-          </ProgressRing>
-        </div>
+    <div
+      className="animate-fade-up relative min-w-0 isolate"
+      style={{ animationDelay: '120ms' }}
+    >
+      {/* Ambient light. The old glow sat one inset behind the photo, so the
+          card covered all of it — this layer reaches well past the card's
+          edges and drifts, which is where a glow actually reads. */}
+      <div className="pointer-events-none absolute -inset-x-10 -top-14 -bottom-12 -z-10" aria-hidden>
+        <span className="absolute left-0 top-0 h-3/4 w-3/4 rounded-full bg-brand/40 blur-3xl animate-glow-drift" />
+        <span
+          className="absolute bottom-0 right-0 h-3/4 w-3/4 rounded-full bg-accent/30 blur-3xl animate-glow-drift"
+          style={{ animationDelay: '-4.5s', animationDuration: '12s' }}
+        />
+      </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          {[
-            { label: 'This week', value: '3 / 4', hint: 'workouts' },
-            { label: 'Streak', value: '12', hint: 'days' },
-            { label: 'FitScore', value: '784', hint: '+18 this week' },
-            { label: 'Bench press', value: '+7.5', hint: 'kg in 6 weeks' },
-          ].map((s) => (
-            <div key={s.label} className="rounded-xl bg-surface-2 border border-line p-3">
-              <p className="text-2xs text-ink-3 uppercase tracking-wide">{s.label}</p>
-              <p className="text-xl font-black tabular mt-0.5">{s.value}</p>
-              <p className="text-2xs text-ink-3">{s.hint}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-4 rounded-xl bg-brand text-brand-contrast px-4 h-12 flex items-center justify-between font-bold">
-          <span>START WORKOUT</span>
-          <ArrowRight size={18} />
-        </div>
+      {/* The frame and the photo float together, so the corner rule stays
+          welded to the card instead of sliding against it. */}
+      <div className="relative animate-float">
+        <div
+          className="pointer-events-none absolute -bottom-3 -right-3 z-10 h-2/3 w-2/3 rounded-[2rem] border-b-2 border-r-2 border-brand"
+          aria-hidden
+        />
+        <figure className="group relative aspect-[16/10] overflow-hidden rounded-[2rem] border border-brand/30 bg-surface shadow-lift lg:aspect-[5/4]">
+          <img
+            src={fithubCover}
+            alt="FitHub athletes ready to train in a modern gym"
+            className="h-full w-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-[1.025]"
+            loading="eager"
+            decoding="async"
+          />
+          <div
+            className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-black/25 via-transparent to-brand/10"
+            aria-hidden
+          />
+          {/* A single slow light sweep across the glass, then a long rest. */}
+          <div
+            className="pointer-events-none absolute inset-y-0 left-0 w-1/5 bg-gradient-to-r from-transparent via-white/25 to-transparent animate-sheen"
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute inset-0 rounded-[inherit] ring-1 ring-inset ring-white/15"
+            aria-hidden
+          />
+        </figure>
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/ui/States';
 import { MuscleMap, MuscleMapLegend } from '@/components/MuscleMap';
 import { MultiLineChart } from '@/components/charts/Charts';
 import { StatTile } from '@/components/dashboard/StatTile';
+import { ExerciseVisualGuide } from '@/components/workout/ExerciseVisualGuide';
 import { useData } from '@/store/data';
 import { useExerciseHistory } from '@/lib/selectors';
 import { getExercise, EQUIPMENT_LABEL, MUSCLE_LABEL } from '@/data/exercises';
@@ -134,6 +135,8 @@ export default function ExerciseDetail() {
 
       <div className="grid lg:grid-cols-[1fr,320px] gap-4">
         <div className="space-y-4">
+          <ExerciseVisualGuide exercise={exercise} />
+
           {/* Instructions */}
           <Card>
             <CardHeader title="Step-by-step" icon={<CheckCircle2 size={16} className="text-success" />} />

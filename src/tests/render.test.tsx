@@ -27,6 +27,8 @@ import Recovery from '@/pages/Recovery';
 import Nutrition from '@/pages/Nutrition';
 import Habits from '@/pages/Habits';
 import Exercises from '@/pages/Exercises';
+import EquipmentGuides from '@/pages/EquipmentGuides';
+import Practice from '@/pages/Practice';
 import ExerciseDetail from '@/pages/ExerciseDetail';
 import Timers from '@/pages/Timers';
 import Challenges from '@/pages/Challenges';
@@ -213,6 +215,8 @@ const PAGES: Array<[string, () => ReactElement, string?]> = [
   ['Nutrition', () => <Nutrition />],
   ['Habits', () => <Habits />],
   ['Exercises', () => <Exercises />],
+  ['EquipmentGuides', () => <EquipmentGuides />],
+  ['Practice', () => <Practice />],
   ['Timers', () => <Timers />],
   ['Challenges', () => <Challenges />],
   ['Achievements', () => <Achievements />],
@@ -253,6 +257,11 @@ describe('every page renders with data', () => {
     );
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Barbell Bench Press');
     expect(document.body.textContent).toMatch(/Step-by-step/);
+    expect(document.body.textContent).toMatch(/Watch the movement/);
+    expect(screen.getByRole('img', { name: /Barbell Bench Press starting position/i }).getAttribute('src'))
+      .toContain('bench-press-start.webp');
+    expect(screen.getByRole('link', { name: /reference videos on YouTube/i }).getAttribute('href'))
+      .toContain('youtube.com/results?search_query=');
     expect(document.body.textContent).toMatch(/Common mistakes/);
     expect(document.body.textContent).toMatch(/Safety/);
     expect(reactErrors).toEqual([]);
@@ -265,6 +274,21 @@ describe('every page renders with data', () => {
       </MemoryRouter>,
     );
     expect(document.body.textContent).toMatch(/not found/i);
+    expect(reactErrors).toEqual([]);
+  });
+
+  it('keeps visual form guides locked on the Free plan', () => {
+    useData.setState({ subscription: null });
+    render(
+      <MemoryRouter initialEntries={['/exercises/push-up']}>
+        <Routes><Route path="/exercises/:slug" element={<ExerciseDetail />} /></Routes>
+      </MemoryRouter>,
+    );
+    expect(document.body.textContent).toMatch(/Visual form guide/);
+    expect(document.body.textContent).toMatch(/Plus & Pro/);
+    expect(screen.queryByRole('img', { name: /Push-Up starting position/i })).toBeNull();
+    expect(screen.queryByRole('link', { name: /reference videos on YouTube/i })).toBeNull();
+    expect(screen.getByRole('link', { name: /Unlock visual guides/i }).getAttribute('href')).toBe('/pricing');
     expect(reactErrors).toEqual([]);
   });
 });
@@ -297,6 +321,8 @@ describe('pages that read equipment survive a missing fitness profile', () => {
   const EQUIPMENT_PAGES: Array<[string, () => ReactElement]> = [
     ['WorkoutToday', () => <WorkoutToday />],
     ['Exercises', () => <Exercises />],
+  ['EquipmentGuides', () => <EquipmentGuides />],
+  ['Practice', () => <Practice />],
   ];
 
   for (const [name, factory] of EQUIPMENT_PAGES) {

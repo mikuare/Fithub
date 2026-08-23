@@ -13,7 +13,7 @@ import { emptyFitnessProfile, HEALTH_DISCLAIMER } from '@/lib/defaults';
 import { generateProgram } from '@/lib/fitness/program';
 import { habitsFromTemplates, HABIT_TEMPLATES } from '@/data/habits';
 import { buildMilestones } from '@/lib/fitness/goals';
-import { EQUIPMENT_LABEL } from '@/data/exercises';
+import { EQUIPMENT_LABEL, EQUIPMENT_OPTIONS } from '@/data/exercises';
 import { inputWeightToKg, inputLengthToCm, displayWeight, displayLength, weightUnit, lengthUnit } from '@/lib/fitness/units';
 import { uid } from '@/lib/id';
 import { addDays, DAY_SHORT, nowISO, today } from '@/lib/date';
@@ -59,18 +59,12 @@ const LOCATIONS: Array<{ value: TrainingLocation; title: string; description: st
   { value: 'mixed', title: 'A mix', description: 'Gym some days, home or outdoors on others.', icon: Shuffle },
 ];
 
-const EQUIPMENT_OPTIONS: Equipment[] = [
-  'bodyweight', 'dumbbells', 'barbell', 'bench', 'squat_rack', 'cable', 'machine',
-  'smith', 'kettlebell', 'bands', 'pullup_bar', 'treadmill', 'bike', 'rower',
-  'medicine_ball', 'jump_rope', 'box',
-];
-
 const LOCATION_EQUIPMENT: Record<TrainingLocation, Equipment[]> = {
-  gym: ['bodyweight', 'dumbbells', 'barbell', 'bench', 'squat_rack', 'cable', 'machine', 'smith', 'kettlebell', 'treadmill', 'bike', 'rower', 'pullup_bar'],
-  home_gym: ['bodyweight', 'dumbbells', 'barbell', 'bench', 'squat_rack', 'kettlebell', 'bands', 'pullup_bar'],
-  home_minimal: ['bodyweight', 'bands', 'dumbbells'],
-  outdoor: ['bodyweight', 'pullup_bar', 'jump_rope'],
-  mixed: ['bodyweight', 'dumbbells', 'bands', 'bench', 'pullup_bar'],
+  gym: ['bodyweight', 'dumbbells', 'barbell', 'bench', 'squat_rack', 'cable', 'machine', 'smith', 'kettlebell', 'treadmill', 'bike', 'rower', 'elliptical', 'pullup_bar', 'dip_bars', 'mat'],
+  home_gym: ['bodyweight', 'dumbbells', 'barbell', 'bench', 'squat_rack', 'kettlebell', 'bands', 'pullup_bar', 'mat'],
+  home_minimal: ['bodyweight', 'bands', 'dumbbells', 'mat'],
+  outdoor: ['bodyweight', 'pullup_bar', 'dip_bars', 'jump_rope'],
+  mixed: ['bodyweight', 'dumbbells', 'bands', 'bench', 'pullup_bar', 'mat'],
 };
 
 const ACTIVITIES: Array<{ value: ActivityKind; label: string; icon: string }> = [
@@ -363,7 +357,8 @@ export default function Onboarding() {
               </div>
               <Callout>
                 Bodyweight is always available. FitHub will never prescribe an exercise that needs
-                equipment you have not selected here.
+                equipment you have not selected here — and once you are set up, every piece you tick
+                gets its own how-to guide under My&nbsp;Equipment.
               </Callout>
             </div>
           )}

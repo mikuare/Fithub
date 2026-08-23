@@ -7,6 +7,9 @@ import { ProgressBar, ProgressRing } from '@/components/ui/Progress';
 import { MuscleMap } from '@/components/MuscleMap';
 import { Button } from '@/components/ui/Button';
 import { Avatar } from '@/components/layout/AppShell';
+import { TierBadge } from '@/components/TierBadge';
+import { EquipmentArt } from '@/components/EquipmentArt';
+import { EQUIPMENT_OPTIONS } from '@/data/exercises';
 import { profileImageProblem } from '@/lib/profileImage';
 
 let reactErrors: string[] = [];
@@ -170,5 +173,38 @@ describe('profile photos', () => {
     expect(profileImageProblem({ name: 'portrait.jpg', type: '', size: 2_000_000 })).toBeNull();
     expect(profileImageProblem({ name: 'IMG_2048.JPEG', type: 'application/octet-stream', size: 8_000_000 })).toBeNull();
     expect(profileImageProblem({ name: 'not-a-photo.pdf', type: '', size: 100 })).toMatch(/JPG/i);
+  });
+});
+
+describe('TierBadge', () => {
+  it('invites a free account to upgrade instead of labelling it "Free"', () => {
+    render(<MemoryRouter><TierBadge tier="free" /></MemoryRouter>);
+    const link = screen.getByRole('link');
+    expect(link.textContent).toMatch(/Upgrade/i);
+    expect(link.getAttribute('href')).toBe('/pricing');
+    expect(reactErrors).toEqual([]);
+  });
+
+  it('names the plan a paying account is on', () => {
+    render(<MemoryRouter><TierBadge tier="plus" /></MemoryRouter>);
+    expect(screen.getByRole('link').textContent).toMatch(/Plus/);
+    cleanup();
+    render(<MemoryRouter><TierBadge tier="pro" /></MemoryRouter>);
+    expect(screen.getByRole('link').textContent).toMatch(/Pro/);
+    expect(reactErrors).toEqual([]);
+  });
+});
+
+describe('EquipmentArt', () => {
+  it('draws an illustration for every selectable piece of equipment', () => {
+    for (const equipment of EQUIPMENT_OPTIONS) {
+      const { container } = render(<EquipmentArt equipment={equipment} />);
+      const svg = container.querySelector('svg');
+      expect(svg, `no svg for ${equipment}`).toBeTruthy();
+      // The shared ground line plus at least one shape of its own.
+      expect(svg!.childElementCount, `${equipment} has no shapes`).toBeGreaterThan(1);
+      cleanup();
+    }
+    expect(reactErrors).toEqual([]);
   });
 });

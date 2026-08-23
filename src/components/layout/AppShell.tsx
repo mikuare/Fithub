@@ -10,6 +10,7 @@ import { greeting } from '@/lib/date';
 import { ActiveWorkoutBar } from './ActiveWorkoutBar';
 import { NotificationPanel } from './NotificationPanel';
 import { CommandPalette } from './CommandPalette';
+import { AccountTierBadge } from '@/components/TierBadge';
 import { ROLE_LABEL } from '@/types';
 
 export function AppShell() {
@@ -74,21 +75,26 @@ export function AppShell() {
           ))}
         </nav>
         <div className="shrink-0 border-t border-line p-3">
-          <Link to="/profile" className="flex items-center gap-3 p-2 rounded-xl hover:bg-surface-2 transition-colors">
-            <Avatar profile={profile} />
+          {/* The plan badge is its own link, so it cannot be nested inside the
+              profile link — the row is the container instead. */}
+          <div className="flex items-center gap-3 p-2 rounded-xl transition-colors hover:bg-surface-2">
+            <Link to="/profile" className="shrink-0" aria-label="Your profile"><Avatar profile={profile} /></Link>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold truncate">{profile.full_name}</p>
-              <p className="text-2xs text-ink-3 truncate">{ROLE_LABEL[profile.role]}</p>
+              <Link to="/profile" className="block text-sm font-semibold truncate">{profile.full_name}</Link>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-2xs text-ink-3 truncate">{ROLE_LABEL[profile.role]}</span>
+                <AccountTierBadge size="sm" />
+              </div>
             </div>
             <button
               type="button"
-              onClick={(e) => { e.preventDefault(); void signOut().then(() => navigate('/welcome')); }}
+              onClick={() => void signOut().then(() => navigate('/welcome'))}
               aria-label="Sign out"
               className="shrink-0 h-8 w-8 grid place-items-center rounded-lg text-ink-3 hover:text-danger hover:bg-danger-soft transition-colors"
             >
               <LogOut size={15} />
             </button>
-          </Link>
+          </div>
         </div>
       </aside>
 
@@ -128,6 +134,14 @@ export function AppShell() {
               ))}
             </nav>
             <div className="shrink-0 border-t border-line p-3">
+              <Link to="/profile" className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-surface-2">
+                <Avatar profile={profile} size={34} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold truncate">{profile.full_name}</p>
+                  <p className="text-2xs text-ink-3 truncate">{ROLE_LABEL[profile.role]}</p>
+                </div>
+              </Link>
+              <div className="px-3 py-2"><AccountTierBadge /></div>
               <button
                 type="button"
                 onClick={() => void signOut().then(() => navigate('/welcome'))}
@@ -156,7 +170,10 @@ export function AppShell() {
             <div className="lg:hidden flex items-center gap-2"><Logo size={26} /></div>
 
             <div className="hidden lg:block min-w-0">
-              <p className="text-sm text-ink-3 leading-tight">{greeting()}, {profile.full_name.split(' ')[0]}.</p>
+              <p className="flex items-center gap-2 text-sm text-ink-3 leading-tight">
+                <span className="truncate">{greeting()}, {profile.full_name.split(' ')[0]}.</span>
+                <AccountTierBadge size="sm" />
+              </p>
               <p className="font-semibold leading-tight">Ready to get stronger?</p>
             </div>
 
@@ -196,7 +213,10 @@ export function AppShell() {
               )}
             </button>
 
-            <Link to="/profile" className="lg:hidden shrink-0"><Avatar profile={profile} size={34} /></Link>
+            <div className="lg:hidden flex items-center gap-1.5">
+              <AccountTierBadge size="sm" />
+              <Link to="/profile" className="shrink-0"><Avatar profile={profile} size={34} /></Link>
+            </div>
           </div>
           {notifOpen && <NotificationPanel onClose={() => setNotifOpen(false)} />}
         </header>

@@ -12,13 +12,20 @@ export const TIER_RANK: Record<SubscriptionTier, number> = { free: 0, plus: 1, p
 
 /** Features the app actually gates. Everything else is free forever —
  *  including data export and account deletion, which are never paywalled. */
-export type PlanFeature = 'body_map' | 'weekly_review' | 'monthly_report' | 'unlimited_goals' | 'fitcoach';
+export type PlanFeature =
+  | 'body_map'
+  | 'weekly_review'
+  | 'monthly_report'
+  | 'unlimited_goals'
+  | 'exercise_guides'
+  | 'fitcoach';
 
 const FEATURE_MIN_TIER: Record<PlanFeature, SubscriptionTier> = {
   body_map: 'plus',
   weekly_review: 'plus',
   monthly_report: 'plus',
   unlimited_goals: 'plus',
+  exercise_guides: 'plus',
   fitcoach: 'pro',
 };
 
@@ -115,6 +122,7 @@ export const PLANS: PlanDef[] = [
       'Niggle journal with exercise cautions',
       'Weekly review with wins & opportunities',
       'Month-over-month training report',
+      'Visual form guides with exercise video references',
       'Unlimited active goals',
     ],
   },

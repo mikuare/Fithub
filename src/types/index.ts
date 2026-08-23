@@ -60,7 +60,11 @@ export type TrainingLocation = 'gym' | 'home_gym' | 'home_minimal' | 'outdoor' |
 export type Equipment =
   | 'dumbbells' | 'barbell' | 'bench' | 'squat_rack' | 'cable' | 'smith'
   | 'treadmill' | 'bike' | 'bands' | 'kettlebell' | 'pullup_bar'
-  | 'machine' | 'bodyweight' | 'medicine_ball' | 'jump_rope' | 'box' | 'rower';
+  | 'machine' | 'bodyweight' | 'medicine_ball' | 'jump_rope' | 'box' | 'rower'
+  /* Small kit people actually own at home. Adding one here never removes an
+     exercise from anybody's programme — it only widens what can be chosen. */
+  | 'ankle_strap' | 'power_twister' | 'ab_wheel' | 'suspension' | 'foam_roller'
+  | 'stability_ball' | 'dip_bars' | 'elliptical' | 'mat' | 'hand_gripper';
 
 export type Activity =
   | 'weightlifting' | 'running' | 'walking' | 'cycling' | 'hiit'

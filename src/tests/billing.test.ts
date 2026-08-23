@@ -20,6 +20,10 @@ describe('plans & entitlements', () => {
     expect(hasFeature('plus', 'fitcoach')).toBe(false);
     expect(hasFeature('pro', 'fitcoach')).toBe(true);
     expect(hasFeature('pro', 'body_map')).toBe(true);
+    expect(hasFeature('free', 'exercise_guides')).toBe(false);
+    expect(hasFeature('plus', 'exercise_guides')).toBe(true);
+    expect(hasFeature('pro', 'exercise_guides')).toBe(true);
+    expect(minTierFor('exercise_guides')).toBe('plus');
     expect(minTierFor('fitcoach')).toBe('pro');
   });
 

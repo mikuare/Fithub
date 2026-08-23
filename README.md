@@ -407,9 +407,17 @@ which is the correct trade for a live backend. Icons are
 imported through an explicit registry rather than a namespace import — the namespace
 version pulled 778 kB of unused icons into the bundle; the registry is 57 kB.
 
-Exercise illustrations are inline SVG muscle maps generated from each exercise's
-`primary`/`secondary` muscle data, so the library ships with real illustrations and
-zero image assets.
+Exercise pages include inline SVG muscle maps generated from each exercise's
+`primary`/`secondary` muscle data. Plus and Pro visual form guides add start/finish
+exercise images, backed by project-local FitHub illustrations where needed and the
+attributed RepDB exercise dataset for the remaining library.
+
+### Exercise-image credits
+
+Selected exercise images are provided by [RepDB](https://repdb.co) under its free
+in-app dataset licence. FitHub displays the attribution alongside every RepDB image.
+The supplemental images in `public/exercise-guides/` were generated specifically for
+FitHub with OpenAI's built-in image-generation tool.
 
 ---
 
