@@ -203,6 +203,25 @@ function Shapes({ equipment }: { equipment: Equipment }) {
           <path d="M46 68l-12 8" strokeWidth={2} opacity={0.7} />
         </>
       );
+    case 'band_set':
+      return (
+        <>
+          {/* Door edge, with the anchor strap threaded through and its stopper
+              on the far side — the part of this kit people get wrong. */}
+          <path d="M22 12v66" strokeWidth={2} opacity={0.35} />
+          <path d="M16 30h10" strokeWidth={2} />
+          <circle cx="31" cy="30" r="6" />
+          {/* Two stackable tubes clipped to the anchor, sagging to the handle. */}
+          <path d="M37 31q30 8 52 24" />
+          <path d="M37 36q28 12 50 27" opacity={0.5} />
+          {/* D-handle at the working end. */}
+          <path d="M89 55q15 3 15 14t-15 12" />
+          {/* Ankle cuff with its D-ring — the other thing the tubes clip into. */}
+          <rect x="110" y="24" width="34" height="18" rx="9" />
+          <path d="M110 33h34" strokeWidth={2} opacity={0.4} />
+          <path d="M144 33h6" strokeWidth={2} />
+        </>
+      );
     case 'power_twister':
       return (
         <>

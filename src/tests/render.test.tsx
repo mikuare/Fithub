@@ -7,9 +7,10 @@ import { useAuth } from '@/store/auth';
 import { useData } from '@/store/data';
 import { defaultNutritionTargets, defaultPreferences, emptyFitnessProfile } from '@/lib/defaults';
 import { generateProgram } from '@/lib/fitness/program';
+import { EXERCISES } from '@/data/exercises';
 import { habitsFromTemplates } from '@/data/habits';
 import { seedChallenges } from '@/data/challenges';
-import { addDays, nowISO, today } from '@/lib/date';
+import { addDays, nowISO, today, weekdayOf } from '@/lib/date';
 import { uid } from '@/lib/id';
 import type { Profile, WorkoutSession, WorkoutSet } from '@/types';
 
@@ -28,6 +29,10 @@ import Nutrition from '@/pages/Nutrition';
 import Habits from '@/pages/Habits';
 import Exercises from '@/pages/Exercises';
 import EquipmentGuides from '@/pages/EquipmentGuides';
+import MyGym from '@/pages/MyGym';
+import Book from '@/pages/Book';
+import GymSettings from '@/pages/admin/GymSettings';
+import Desk from '@/pages/admin/Desk';
 import Practice from '@/pages/Practice';
 import ExerciseDetail from '@/pages/ExerciseDetail';
 import Timers from '@/pages/Timers';
@@ -146,8 +151,21 @@ function seedStores(empty = false) {
     challenges: seedChallenges('gym-1'),
     challengeMembers: [], friendships: [], feed: [], notifications: [], messages: [],
     memberships: [], checkins: [], trainerClients: [], trainerNotes: [],
-    gym: { id: 'gym-1', name: 'FitHub Central', address: '18 Riverside Way', timezone: 'UTC', open_hour: 6, close_hour: 23, capacity: 220 },
-    plans: [{ id: 'plan-1', gym_id: 'gym-1', name: 'Standard', price: 39, currency: 'USD', months: 6, perks: ['Full access'] }],
+    gym: {
+      id: 'gym-1', name: 'FitHub Central', join_code: 'FITH-CTR', description: 'A test gym.',
+      address: '18 Riverside Way', phone: '+1 555 0142', email: 'hello@example.com',
+      timezone: 'UTC', open_hour: 6, close_hour: 23, capacity: 220, currency: 'USD',
+      logo_data_url: null, photos: [], created_by: null, active: true, created_at: nowISO(),
+    },
+    plans: [{
+      id: 'plan-1', gym_id: 'gym-1', name: 'Standard', price: 39, currency: 'USD',
+      months: 6, perks: ['Full access'], includes_classes: true,
+    }],
+    gymClasses: [{
+      id: 'cls-1', gym_id: 'gym-1', name: 'Spin', description: 'Indoor cycling.',
+      weekday: weekdayOf(addDays(today(), 1)), start_time: '18:00', duration_minutes: 45,
+      capacity: 20, trainer_id: null, price: 14, active: true,
+    }],
     equipment: [{
       id: 'eq-1', gym_id: 'gym-1', name: 'Treadmill 01', asset_tag: 'FH-001', category: 'Cardio',
       location: 'Cardio floor', status: 'available', last_inspection: addDays(today(), -20),
@@ -160,7 +178,8 @@ function seedStores(empty = false) {
     }],
     allMemberships: [{
       id: 'mem-1', user_id: 'member-2', gym_id: 'gym-1', plan_id: 'plan-1', status: 'active',
-      start_date: addDays(today(), -60), end_date: addDays(today(), 120), member_code: 'FH-AB12-CD', auto_renew: true,
+      start_date: addDays(today(), -60), end_date: addDays(today(), 120), member_code: 'FH-AB12-CD',
+      auto_renew: true, payment: 'paid',
     }],
     allCheckins: [{
       id: 'ci-1', user_id: 'member-2', gym_id: 'gym-1', checked_in_at: nowISO(),
@@ -216,6 +235,10 @@ const PAGES: Array<[string, () => ReactElement, string?]> = [
   ['Habits', () => <Habits />],
   ['Exercises', () => <Exercises />],
   ['EquipmentGuides', () => <EquipmentGuides />],
+  ['MyGym', () => <MyGym />],
+  ['Book', () => <Book />],
+  ['GymSettings', () => <GymSettings />],
+  ['Desk', () => <Desk />],
   ['Practice', () => <Practice />],
   ['Timers', () => <Timers />],
   ['Challenges', () => <Challenges />],
@@ -359,6 +382,7 @@ describe('key content', () => {
 
   it('the exercise library lists every exercise', () => {
     renderPage(<Exercises />);
-    expect(document.body.textContent).toMatch(/10[0-9] exercises/);
+    // Derived, not hardcoded: adding an exercise should not fail this test.
+    expect(document.body.textContent).toContain(`${EXERCISES.length} exercises`);
   });
 });

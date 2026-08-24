@@ -1,5 +1,5 @@
 import type { DataState } from '@/store/data';
-import { getExercise, EXERCISES } from '@/data/exercises';
+import { getExercise, EXERCISES, expandEquipment } from '@/data/exercises';
 import { buildHistory, strengthTrend, suggestProgression } from '@/lib/fitness/progression';
 import { computeStreak } from '@/lib/fitness/streaks';
 import { computeRecoveryScore } from '@/lib/fitness/recovery';
@@ -361,7 +361,8 @@ function answerAlternatives(q: string, state: DataState): CoachAnswer {
   }
   const equipment = state.fitnessProfile?.equipment ?? ['bodyweight'];
   const alts = exercise.alternatives.map(getExercise).filter(Boolean);
-  const available = alts.filter((a) => a!.equipment.every((e) => equipment.includes(e) || e === 'bodyweight'));
+  const owned = expandEquipment(equipment);
+  const available = alts.filter((a) => a!.equipment.every((e) => owned.has(e)));
   const list = available.length ? available : alts;
 
   if (!list.length) {

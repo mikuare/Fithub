@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   AlertTriangle, Play, Plus, RefreshCw, Trash2, GripVertical, Info, Repeat, Timer,
-  ChevronDown, ChevronUp, Dumbbell, Zap,
+  ChevronDown, ChevronUp, Dumbbell, Zap, Wand2, Undo2, BatteryCharging,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
@@ -13,10 +13,11 @@ import { Icon } from '@/components/Icon';
 import { MuscleMap } from '@/components/MuscleMap';
 import { ExercisePickerModal } from '@/components/workout/ExercisePickerModal';
 import { useData } from '@/store/data';
-import { useHasFeature, useTodaysProgramDay } from '@/lib/selectors';
+import { useHasFeature, useTodaysProgramDay, useTodaysRecovery } from '@/lib/selectors';
 import { getExercise } from '@/data/exercises';
 import { estimateSessionMinutes, SESSION_KIND_META } from '@/lib/fitness/program';
 import { computeMuscleFreshness, sessionCautions } from '@/lib/fitness/freshness';
+import { autoRegulateSession } from '@/lib/fitness/autoRegulate';
 import { MUSCLE_LABEL } from '@/data/exercises';
 import { repScheme } from '@/lib/fitness/calculations';
 import { fmtWeight, displayWeight, inputWeightToKg } from '@/lib/fitness/units';
@@ -44,6 +45,7 @@ export default function WorkoutToday() {
   const [swapTarget, setSwapTarget] = useState<PlannedExercise | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [preAdjust, setPreAdjust] = useState<PlannedExercise[] | null>(null);
 
   const lastPerformance = useMemo(() => {
     const dates = new Map(sessions.map((s) => [s.id, s.date]));
@@ -78,6 +80,32 @@ export default function WorkoutToday() {
     const freshness = computeMuscleFreshness(allSets, sessions);
     return sessionCautions(planned, freshness, niggles, fitnessProfile?.equipment);
   }, [hasBodyMap, planned, allSets, sessions, niggles, fitnessProfile]);
+
+  // Today's readiness (free) plus, on Plus+, fatigue-driven swaps — combined
+  // into one explainable, reversible one-tap adjustment.
+  const recoveryReadout = useTodaysRecovery();
+  const autoAdjust = useMemo(
+    () => autoRegulateSession(planned, cautions, recoveryReadout),
+    [planned, cautions, recoveryReadout],
+  );
+  const showReadiness = recoveryReadout.hasInput
+    && recoveryReadout.state !== 'excellent' && recoveryReadout.state !== 'ready';
+  const canAutoAdjust = autoAdjust.changes.length > 0;
+
+  const applyAutoAdjust = () => {
+    setPreAdjust(planned);
+    setPlanned(autoAdjust.planned);
+    toast.success(
+      `Adjusted ${pluralize(autoAdjust.changes.length, 'exercise')} for today`,
+      autoAdjust.changes.map((c) => c.summary).join(' · '),
+    );
+  };
+
+  const undoAutoAdjust = () => {
+    if (!preAdjust) return;
+    setPlanned(preAdjust);
+    setPreAdjust(null);
+  };
 
   const addExercise = (exercise: Exercise) => {
     const scheme = repScheme(
@@ -171,26 +199,58 @@ export default function WorkoutToday() {
         </div>
       </header>
 
-      {cautions.length > 0 && (
+      {(showReadiness || cautions.length > 0) && (
         <Card className="border-warn/40">
-          <div className="p-4">
-            <p className="flex items-center gap-2 text-sm font-semibold">
-              <AlertTriangle size={15} className="text-warn shrink-0" />
-              Heads-up from your Body Map
-            </p>
-            <ul className="mt-1.5 space-y-0.5 text-xs text-ink-2 leading-relaxed">
-              {cautions.map((c) => (
-                <li key={c.slug}>
-                  <span className="font-medium">{c.name}</span>
-                  {' — '}
-                  {c.reasons.map((r) => `${MUSCLE_LABEL[r.muscle]} ${r.detail}`).join('; ')}.
-                </li>
-              ))}
-            </ul>
-            <p className="mt-2 text-2xs text-ink-3">
-              Suggestions only — train as planned if you feel good, or use the swap button on an
-              exercise below. <Link to="/body" className="font-semibold text-brand-text">Open Body Map</Link>
-            </p>
+          <div className="p-4 space-y-3">
+            {showReadiness && (
+              <p className="flex items-start gap-2 text-sm">
+                <BatteryCharging size={15} className="text-warn shrink-0 mt-0.5" />
+                <span>
+                  <span className="font-semibold">Readiness {recoveryReadout.score}/100 — {recoveryReadout.label}.</span>{' '}
+                  <span className="text-ink-2">{recoveryReadout.advice}</span>
+                </span>
+              </p>
+            )}
+
+            {cautions.length > 0 && (
+              <div>
+                <p className="flex items-center gap-2 text-sm font-semibold">
+                  <AlertTriangle size={15} className="text-warn shrink-0" />
+                  Heads-up from your Body Map
+                </p>
+                <ul className="mt-1.5 space-y-0.5 text-xs text-ink-2 leading-relaxed">
+                  {cautions.map((c) => (
+                    <li key={c.slug}>
+                      <span className="font-medium">{c.name}</span>
+                      {' — '}
+                      {c.reasons.map((r) => `${MUSCLE_LABEL[r.muscle]} ${r.detail}`).join('; ')}.
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-2xs text-ink-3">
+                  Suggestions only — train as planned if you feel good, or use the swap button on an
+                  exercise below. <Link to="/body" className="font-semibold text-brand-text">Open Body Map</Link>
+                </p>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              {canAutoAdjust && (
+                <Button size="sm" onClick={applyAutoAdjust} icon={<Wand2 size={14} />}>
+                  Auto-adjust for today
+                </Button>
+              )}
+              {preAdjust && (
+                <Button variant="outline" size="sm" onClick={undoAutoAdjust} icon={<Undo2 size={14} />}>
+                  Undo
+                </Button>
+              )}
+              {canAutoAdjust && (
+                <span className="text-2xs text-ink-3">
+                  Swaps and trims sets — never adds anything, never removes an exercise outright.
+                </span>
+              )}
+            </div>
           </div>
         </Card>
       )}

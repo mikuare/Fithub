@@ -1,5 +1,5 @@
-import type { Equipment } from '@/types';
-import { EXERCISES } from '@/data/exercises';
+import type { Equipment, GoalKind } from '@/types';
+import { EXERCISES, IMPLIED_EQUIPMENT, expandEquipment } from '@/data/exercises';
 
 /* ============================================================
    Equipment guides
@@ -722,6 +722,41 @@ const GUIDES: EquipmentGuide[] = [
     ],
     videoQuery: 'elliptical trainer proper form technique',
   },
+  {
+    equipment: 'band_set',
+    summary:
+      'The boxed kit sold as an "11pc resistance bands set": five colour-coded tubes that clip together to stack resistance, two handles, a door anchor and a pair of ankle straps. Anchored to a door it covers most of what a cable machine does, for the price of a cheap dinner and the space of a shoebox.',
+    trains: ['Full body', 'Chest', 'Back', 'Shoulders', 'Arms', 'Glutes', 'Legs'],
+    steps: [
+      'Lay the kit out and check every tube: hold it up to the light and look for nicks, splits or cloudy patches near the metal clips. A tube that snaps under load whips back at your face. Bin a damaged one — do not "get one more session" out of it.',
+      'Pick your resistance by stacking, not straining. Clip one tube to each end of the handle for light work; add a second and a third to the same clips to go heavier. The colours are printed with their poundage on the clip.',
+      'Set the door anchor. Push the foam ball through to the far side of the door and pull the strap back so the ball sits flat against the outside face — high for pulldowns, chest height for presses and rows, low at the floor for curls and kickbacks.',
+      'Close the door and check it opens away from you. If the door swings towards you, the anchor is on the pull side and the door will fly open into your face. Lock it if you can.',
+      'Clip the tubes to the anchor loop, then the handles or ankle cuffs to the other end. Tug each carabiner hard before you trust it — the gate should be fully closed, not caught on the webbing.',
+      'For ankle work, wrap the cuff padded-side against your skin just above the ankle bone, snug enough that one finger just slides underneath.',
+      'Step away from the anchor until there is already tension at the start position. A band with slack does nothing for the first third of the rep.',
+      'Set your stance: feet split, front knee soft, ribs down, middle braced. Bands pull you back toward the anchor, so you need a base that resists it.',
+      'Move against the resistance at a steady count, and control the way back over about three seconds. The return is where bands build most of their strength — letting it snap back wastes half the rep.',
+      'Keep the tube clear of the door edge, the frame and your own skin. A tube dragged across a sharp edge is the one that fails next week.',
+      'Unclip and release the tension deliberately at the end of the set. Never let a loaded handle go.',
+    ],
+    plan: [
+      { label: 'Set up and warm up', detail: 'Rig the anchor, check the tubes, then a light tube for pull-aparts and band dislocates', minutes: 6 },
+      { label: 'Main work', detail: 'Four to six anchored moves — a press, a row, a pulldown, a curl or pressdown, and something for the hips', minutes: 22 },
+      { label: 'Finish', detail: 'One high-rep pump set and a stretch using the band as an assist', minutes: 6 },
+    ],
+    dose: '3–4 sets of 12–20 reps per movement. Bands get harder as they stretch, so pick a stack you could just about do 20 with and stop 2 reps short of failing.',
+    frequency: '3–5 sessions a week. The low joint load means you can train more often than with heavy free weights.',
+    safety: [
+      'Never anchor to a door that opens towards you, and never to a handle, a radiator or a bannister. Doors and rails have failed and the metal clip travels at eye height.',
+      'Inspect every tube before every session. Latex degrades with sunlight, heat and sweat — most snaps are on a tube somebody already knew was cracked.',
+      'Keep your face out of the line of the tube. Set up beside the path of the band, never directly along it.',
+      'Do not stack more tubes than the handle clip is rated for; the clip fails before the tube does.',
+      'Stretching a tube past roughly two and a half times its resting length is where the risk climbs steeply. If it feels tight before you have started the rep, step in.',
+      'Store it out of direct sunlight and away from radiators. A bag in a cupboard, not a windowsill.',
+    ],
+    videoQuery: 'resistance band set door anchor setup full body workout',
+  },
 ];
 
 export const EQUIPMENT_GUIDES: Record<string, EquipmentGuide> =
@@ -748,5 +783,284 @@ export function equipmentVideoUrl(guide: EquipmentGuide): string | null {
 
 /** Library exercises that need this piece of kit, for onward links. */
 export function exercisesUsing(equipment: Equipment, limit = 6) {
-  return EXERCISES.filter((e) => e.equipment.includes(equipment)).slice(0, limit);
+  // A bundled kit should list what its parts unlock, not an empty shelf.
+  const parts = new Set<Equipment>([equipment, ...(IMPLIED_EQUIPMENT[equipment] ?? [])]);
+  const owned = expandEquipment([equipment]);
+  const soloable = (e: (typeof EXERCISES)[number]) => e.equipment.every((x) => owned.has(x));
+  return EXERCISES
+    .filter((e) => e.equipment.some((x) => parts.has(x)))
+    // Lead with what this kit does on its own — listing gym-only movements
+    // first reads as a promise the kit cannot keep.
+    .sort((a, b) => Number(soloable(b)) - Number(soloable(a)))
+    .slice(0, limit);
+}
+
+
+/* ============================================================
+   Goal routines
+   The kit guide answers "what is this thing and how do I not hurt
+   myself". This answers the question people actually arrive with:
+   "I own this — what do I do with it to get what I am after?"
+   Authored per goal, because the same kit run three different ways
+   produces three different results.
+   ============================================================ */
+
+export interface GoalRoutineStep {
+  title: string;
+  detail: string;
+  /** The check that tells you the step worked. Without it a step is just a wish. */
+  cue: string;
+}
+
+export interface EquipmentGoalRoutine {
+  equipment: Equipment;
+  headline: string;
+  /** Why this shape of session serves this goal. */
+  why: string;
+  steps: GoalRoutineStep[];
+  dose: string;
+  weekly: string;
+  /** Stated plainly where the kit is a compromise for this goal. */
+  caveat: string | null;
+}
+
+/** Goals that share a routine, so the table stays honest instead of padded. */
+type RoutineKey = 'lose_fat' | 'build_muscle' | 'gain_strength' | 'improve_endurance' | 'mobility' | 'balanced';
+
+const ROUTINE_KEY: Record<GoalKind, RoutineKey> = {
+  lose_fat: 'lose_fat',
+  build_muscle: 'build_muscle',
+  gain_strength: 'gain_strength',
+  improve_endurance: 'improve_endurance',
+  mobility: 'mobility',
+  general_fitness: 'balanced',
+  maintain: 'balanced',
+};
+
+const BAND_SET_ROUTINES: Record<RoutineKey, Omit<EquipmentGoalRoutine, 'equipment'>> = {
+  lose_fat: {
+    headline: 'Circuit the whole body, keep the rest short',
+    why: 'Fat loss is won on the calorie side, but training decides whether what you lose is fat or muscle. Short rests keep the heart rate up; hitting every major muscle tells your body to keep the muscle it has.',
+    steps: [
+      {
+        title: 'Rig the anchor at chest height and pick a middle stack',
+        detail: 'Two tubes on each handle. You want a load you could manage for 20 reps, not one that has you grinding at 8 — you are going to come back to it four times.',
+        cue: 'Rep 15 of the first round should feel easy. If it does not, drop a tube now rather than falling apart in round three.',
+      },
+      {
+        title: 'Run five moves back to back with no rest between them',
+        detail: 'Chest press, row, squat with the tube under both feet, overhead press, then kickbacks with the ankle cuff. Move straight from one to the next — the changeover is your rest.',
+        cue: 'You should be breathing hard enough that talking comes in short sentences, not gasping and not comfortable.',
+      },
+      {
+        title: 'Rest 90 seconds at the end of the round, then go again',
+        detail: 'Four rounds total. Set a timer and obey it; resting by feel always drifts longer as you tire.',
+        cue: 'If round four takes noticeably longer than round one, the stack was too heavy, not your willpower.',
+      },
+      {
+        title: 'Finish with one long set to empty the tank',
+        detail: 'Lightest tube, high-rep pull-aparts or squats to 25–30 reps. Cheap extra work that costs nothing in recovery.',
+        cue: 'A burn, not a strain. Stop if form breaks.',
+      },
+      {
+        title: 'Log it and leave the deficit to the kitchen',
+        detail: 'Do not add extra sessions to chase a stall. Check the Nutrition page instead — a stalled cut is nearly always a calorie problem, not a training one.',
+        cue: 'Weight trending down 0.4–1% a week means it is working. Flat for three weeks means the numbers need changing, not the workout.',
+      },
+    ],
+    dose: '4 rounds of 5 movements, 12–20 reps each, 90 seconds rest between rounds only.',
+    weekly: '3–4 sessions a week on non-consecutive days.',
+    caveat: null,
+  },
+  build_muscle: {
+    headline: 'Stack the tubes, slow the way back, chase the last few reps',
+    why: 'Muscle responds to hard sets taken close to failure and to time under tension. Bands get harder the further you stretch them, which suits this better than it suits anything else.',
+    steps: [
+      {
+        title: 'Stack up until 12 reps is genuinely hard',
+        detail: 'Clip a second and third tube to the same handle. The set should have you slowing down by rep 10 and finishing at about rep 12–15 with two left in you.',
+        cue: 'If you can rattle off 20 clean reps, add a tube. Bands are too easy to under-load.',
+      },
+      {
+        title: 'Take three seconds on every return',
+        detail: 'The stretch back to the start is where band training does most of its damage, in the good sense. Count it: one, two, three, then press or pull again.',
+        cue: 'You should feel the working muscle resisting the whole way back, never the band yanking your arm home.',
+      },
+      {
+        title: 'Two anchored pushes, two anchored pulls, every session',
+        detail: 'Chest press and overhead press; row and pulldown. Balance matters more here than novelty — the pulls keep your shoulders healthy enough to keep pressing.',
+        cue: 'Pulls should total at least as many sets as pushes across the week.',
+      },
+      {
+        title: 'Step further from the anchor to add load without adding tubes',
+        detail: 'A half step back meaningfully increases tension at the start of the rep. It is the finest adjustment this kit has, and it is free.',
+        cue: 'There must already be tension before you begin the rep. Slack at the start means the first third does nothing.',
+      },
+      {
+        title: 'Add a set or a half step every week or two',
+        detail: 'Progression is the whole point. Same stack, same reps, forever, gives you what you already have.',
+        cue: 'If nothing has gone up in three weeks — reps, sets, tubes or distance from the anchor — you are maintaining, not building.',
+      },
+    ],
+    dose: '3–4 sets of 10–15 reps per movement, 60–90 seconds rest, stopping about 2 reps short of failure.',
+    weekly: '3–4 sessions a week, each muscle hit twice.',
+    caveat: 'Bands cap out. Once the heaviest stack gives you 20 easy reps, this kit can maintain the muscle you have built but will struggle to add much more — that is the point to add dumbbells rather than more tubes.',
+  },
+  gain_strength: {
+    headline: 'Heaviest stack, low reps, full rest — and be honest about the ceiling',
+    why: 'Strength is a skill practised under heavy load with full recovery between efforts. Bands can build it early on, and the accommodating resistance is genuinely useful for lockout strength.',
+    steps: [
+      {
+        title: 'Stack every tube you own onto one handle',
+        detail: 'For strength work you want a load where 6 reps is a real fight. With this kit that usually means all five tubes and standing well back from the anchor.',
+        cue: 'Rep 6 should be slow and grinding. If rep 6 is smooth, this is muscle-building work, not strength work.',
+      },
+      {
+        title: 'Pick three or four movements and stay on them for weeks',
+        detail: 'Anchored press, row, pulldown, and a squat with the tube under both feet. Strength comes from repeating the same lift, not from variety.',
+        cue: 'You should know last week\'s numbers before you start today\'s session.',
+      },
+      {
+        title: 'Rest two to three full minutes between sets',
+        detail: 'Longer than feels necessary. You are recovering the nervous system, not catching your breath — cutting rest turns a strength session into a conditioning one.',
+        cue: 'Set two should be as strong as set one. If it drops off sharply, you rested too little.',
+      },
+      {
+        title: 'Drive fast out of the stretch, control the return',
+        detail: 'Intent to move the load quickly is what trains strength, even when the band means it does not actually move fast.',
+        cue: 'The first inch should be sharp. A slow, tentative start trains hesitation.',
+      },
+      {
+        title: 'Pair it with something that loads you heavily',
+        detail: 'Use the bands for volume and lockout work, and get under real load — dumbbells, a barbell, or your own bodyweight on dips and chin-ups — for the heavy end.',
+        cue: 'Progress in strength shows up as more load, not more reps. If load cannot go up, strength will plateau.',
+      },
+    ],
+    dose: '4–5 sets of 5–8 hard reps, 2–3 minutes rest.',
+    weekly: '3 sessions a week, never two heavy days back to back.',
+    caveat: 'This is the goal a band set serves worst. Tension peaks at the end of the range and nearly disappears at the start, which is the opposite of what a heavy lift demands. Expect real progress for a few months as a beginner, then a genuine ceiling.',
+  },
+  improve_endurance: {
+    headline: 'Long sets, light stack, keep moving',
+    why: 'Muscular endurance is built by staying under load far longer than a strength set allows. A light tube lets you keep going well past the point a dumbbell would force you to stop.',
+    steps: [
+      {
+        title: 'Pick the lightest tube that still makes 25 reps a challenge',
+        detail: 'One tube, sometimes two. The goal is sustained work, not a fight.',
+        cue: 'You should reach rep 20 with form intact and rep 30 wanting to stop.',
+      },
+      {
+        title: 'Work in long continuous blocks, not short sets',
+        detail: 'Three minutes on one movement, straight through, changing tempo rather than stopping. Then move on.',
+        cue: 'Breathing steady and rhythmic. If you are holding your breath, the stack is too heavy for this.',
+      },
+      {
+        title: 'Alternate an upper move with a lower move',
+        detail: 'While the legs work the arms recover, so you can keep going far longer without either giving out.',
+        cue: 'You should never need to stop entirely — only to switch.',
+      },
+      {
+        title: 'Add a minute a week before you add a tube',
+        detail: 'For endurance, duration is the progression. Load comes last.',
+        cue: 'Same stack, more total time under it, week over week.',
+      },
+      {
+        title: 'Keep this separate from your hard cardio days',
+        detail: 'Bands complement running or cycling; they do not replace the aerobic work that actually drives endurance.',
+        cue: 'If this session leaves you too tired to run well tomorrow, it was too hard.',
+      },
+    ],
+    dose: '3-minute blocks per movement, 20–35 reps a set, minimal rest, 25–35 minutes total.',
+    weekly: '2–3 sessions a week alongside your main cardio.',
+    caveat: 'A band set builds muscular endurance well and cardiovascular endurance barely at all. The heart and lungs still need running, cycling, rowing or brisk walking.',
+  },
+  mobility: {
+    headline: 'Lightest tube, assisted range, no load worth mentioning',
+    why: 'For mobility the band is a guide and a gentle assist, not resistance. It helps you reach positions you cannot yet hold on your own and gives your joints something to stabilise against.',
+    steps: [
+      {
+        title: 'Use one tube only, the lightest in the box',
+        detail: 'Anything heavier turns a mobility drill into a strength exercise and you lose the range you came for.',
+        cue: 'You should be able to hold the end position and breathe normally.',
+      },
+      {
+        title: 'Shoulder dislocates and pull-aparts to open the chest',
+        detail: 'Wide grip, arms straight, take the band slowly overhead and behind. Narrow the grip over the weeks as the range improves.',
+        cue: 'Elbows stay locked. Bending them is borrowing range you have not earned.',
+      },
+      {
+        title: 'Anchor low and use the tube to traction a joint',
+        detail: 'Loop it round the hip or shoulder and lean away so it gently pulls the joint into its socket while you move through the range.',
+        cue: 'A stretch, never a pinch. Sharp or pointed sensations mean stop.',
+      },
+      {
+        title: 'Hold end positions for 30 seconds, not 3',
+        detail: 'Range comes from time spent at the edge of it, not from bouncing at it.',
+        cue: 'The last 10 seconds should feel easier than the first — that is the tissue letting go.',
+      },
+      {
+        title: 'Do it most days, briefly',
+        detail: 'Ten focused minutes daily beats an hour once a week by a distance.',
+        cue: 'You should finish feeling looser than when you started, never sore.',
+      },
+    ],
+    dose: '2–3 sets of 30–60 seconds or 10–15 slow reps per drill, 10–15 minutes total.',
+    weekly: '4–7 short sessions a week.',
+    caveat: null,
+  },
+  balanced: {
+    headline: 'Push, pull, hinge, squat — cover everything, twice a week',
+    why: 'With no single goal pulling the session one way, the job is coverage: every major pattern trained regularly enough to keep it, at an effort you can repeat for years.',
+    steps: [
+      {
+        title: 'Anchor at chest height and pick a stack you could do 15 with',
+        detail: 'Two tubes suits most people starting out. Comfortable is fine here — consistency is the point, not intensity.',
+        cue: 'You should finish each set thinking you had 3 or 4 more in you.',
+      },
+      {
+        title: 'One push, one pull, one squat, one hip hinge, every session',
+        detail: 'Chest press, row, band squat, and a good morning or kickback with the ankle cuff. Four movements covers the whole body.',
+        cue: 'Nothing gets skipped because it is the boring one. The skipped pattern is the one that gets injured.',
+      },
+      {
+        title: 'Three sets of each, a minute between',
+        detail: 'About 25 minutes all in. Short enough that you will actually do it on a bad week.',
+        cue: 'Finish feeling worked, not wrecked.',
+      },
+      {
+        title: 'Add a little every few weeks',
+        detail: 'A rep, a set, half a step further from the anchor. Small and steady beats heroic and abandoned.',
+        cue: 'Compare against a month ago, not against last session.',
+      },
+      {
+        title: 'Keep the ankle cuffs in rotation',
+        detail: 'They are the part of the kit that gets left in the box, and hip work is the part most home training misses.',
+        cue: 'At least one hip movement in every session.',
+      },
+    ],
+    dose: '3 sets of 12–15 reps per movement, about 60 seconds rest.',
+    weekly: '2–3 sessions a week.',
+    caveat: null,
+  },
+};
+
+/** Routines by kit. Only authored where the answer genuinely differs by goal. */
+const GOAL_ROUTINES: Partial<Record<Equipment, Record<RoutineKey, Omit<EquipmentGoalRoutine, 'equipment'>>>> = {
+  band_set: BAND_SET_ROUTINES,
+};
+
+/**
+ * The goal-shaped routine for a piece of kit, or null where FitHub has nothing
+ * specific to say. Returning null is deliberate: a generic routine dressed up
+ * as goal-specific advice is worse than admitting there is none.
+ */
+export function equipmentGoalRoutine(equipment: Equipment, goal: GoalKind): EquipmentGoalRoutine | null {
+  const table = GOAL_ROUTINES[equipment];
+  if (!table) return null;
+  return { equipment, ...table[ROUTINE_KEY[goal]] };
+}
+
+/** True when this kit has goal-specific routines at all. */
+export function hasGoalRoutine(equipment: Equipment): boolean {
+  return GOAL_ROUTINES[equipment] !== undefined;
 }

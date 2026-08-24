@@ -354,3 +354,276 @@ export function suggestFoods(
         : `${f.calories} kcal fits the ${remaining.calories} kcal you have left`,
     }));
 }
+
+/* ---------------- what to go easy on ----------------
+   The other half of the picture. A food is still never "bad" — but a goal
+   you are actually chasing does make some foods harder to live with, and
+   saying so plainly is more useful than pretending everything is equal.
+   Crucially, "go easy" is only computed for goals that genuinely call for
+   it: someone maintaining is told to restrict nothing, because nothing
+   about their goal requires it.
+   ---------------------------------------------------- */
+
+/** Grams (or millilitres) in a serving string like '100 g' or '30 g scoop'. Null when it is '1 medium'. */
+export function servingGrams(serving: string): number | null {
+  const m = /(\d+(?:\.\d+)?)\s*(g|ml)\b/i.exec(serving);
+  return m ? Number(m[1]) : null;
+}
+
+/** Calories per 100 g — how easy the food is to eat more of without noticing. Null when the serving has no weight. */
+export function energyDensity(food: { calories: number; serving?: string }): number | null {
+  const g = food.serving ? servingGrams(food.serving) : null;
+  if (!g || g <= 0) return null;
+  return round((food.calories / g) * 100, 0);
+}
+
+export type FoodStance = 'eat' | 'portion' | 'limit';
+
+export interface StanceVerdict {
+  stance: FoodStance;
+  /** Why, stated in the terms of the goal actually being trained for. */
+  reason: string;
+  /** Concrete handling advice. Null when the food needs none. */
+  portion: string | null;
+  /** Internal ordering value — do not display. */
+  rank: number;
+}
+
+export const STANCE_META: Record<FoodStance, { label: string; tone: 'success' | 'warn' | 'danger' }> = {
+  eat: { label: 'Eat freely', tone: 'success' },
+  portion: { label: 'Mind the portion', tone: 'warn' },
+  limit: { label: 'Go easy', tone: 'danger' },
+};
+
+export interface GoalLimitPolicy {
+  /** Does this goal genuinely require holding anything back? */
+  applies: boolean;
+  /** One-line rule of thumb for the goal. */
+  rule: string;
+  eatHeading: string;
+  limitHeading: string;
+  /** Shown in place of a limit list when the goal does not call for one. */
+  noLimitNote: string | null;
+}
+
+export const GOAL_LIMIT_POLICY: Record<GoalKind, GoalLimitPolicy> = {
+  lose_fat: {
+    applies: true,
+    rule: 'Protein and volume first. What you go easy on is energy density, not any particular food.',
+    eatHeading: 'Lead your plate with these',
+    limitHeading: 'Go easy on these',
+    noLimitNote: null,
+  },
+  build_muscle: {
+    applies: true,
+    rule: 'Nothing is off limits — the risk is filling up on food that neither builds nor fuels.',
+    eatHeading: 'Build the day around these',
+    limitHeading: 'Do not fill up on these first',
+    noLimitNote: null,
+  },
+  gain_strength: {
+    applies: true,
+    rule: 'Eat to recover. The only real mistake is turning up to heavy sessions under-fuelled.',
+    eatHeading: 'Build the day around these',
+    limitHeading: 'Do not fill up on these first',
+    noLimitNote: null,
+  },
+  improve_endurance: {
+    applies: true,
+    rule: 'This is about timing, not banning. Carbs near sessions, everything else away from them.',
+    eatHeading: 'Fuel with these',
+    limitHeading: 'Keep these away from sessions',
+    noLimitNote: null,
+  },
+  general_fitness: {
+    applies: false,
+    rule: 'Mostly whole food, protein at most meals, and a pattern you can keep.',
+    eatHeading: 'Reliable staples',
+    limitHeading: '',
+    noLimitNote: 'Your goal does not call for restricting anything. FitHub only shows a “go easy” list when the goal you picked actually needs one — change your goal to fat loss or muscle gain and it appears.',
+  },
+  maintain: {
+    applies: false,
+    rule: 'You are holding steady. Consistency is the whole strategy.',
+    eatHeading: 'Reliable staples',
+    limitHeading: '',
+    noLimitNote: 'Maintaining needs no restriction list. Eat the way you already eat and watch the trend, not the day.',
+  },
+  mobility: {
+    applies: false,
+    rule: 'Mobility work is not driven by diet. Eat enough, eat well, and get on with the sessions.',
+    eatHeading: 'Reliable staples',
+    limitHeading: '',
+    noLimitNote: 'Nothing about mobility training calls for holding foods back, so FitHub does not invent a list.',
+  },
+};
+
+interface Signal { weight: number; reason: string; portion?: string }
+
+function verdictFrom(signals: Signal[], relief: number, fallback: string): StanceVerdict {
+  const rank = Math.max(0, signals.reduce((a, s) => a + s.weight, 0) + relief);
+  const stance: FoodStance = rank >= 35 ? 'limit' : rank >= 16 ? 'portion' : 'eat';
+  const lead = [...signals].sort((a, b) => b.weight - a.weight)[0];
+  return {
+    stance,
+    rank: round(rank, 1),
+    reason: stance === 'eat' || !lead ? fallback : lead.reason,
+    portion: stance === 'eat' ? null : lead?.portion ?? null,
+  };
+}
+
+/**
+ * Where a food sits for the goal being trained for: eat freely, mind the
+ * portion, or go easy — with the number that drove the call. Goals that do
+ * not call for restriction never return anything but 'eat'.
+ */
+export function foodStance(food: MacroSource & { serving?: string }, goal: GoalKind): StanceVerdict {
+  const p = foodProfile(food);
+  const tags = food.tags ?? [];
+  const p100 = p.proteinPer100kcal ?? 0;
+  const kcal = food.calories;
+  const ed = energyDensity(food);
+  const veg = tags.includes('vegetable');
+  const fruit = tags.includes('fruit');
+  const proteinRescue = p100 >= 9 && food.protein_g >= 8;
+
+  if (kcal > 0 && kcal < 10) {
+    return { stance: 'eat', rank: 0, reason: 'Effectively calorie-free — it changes nothing either way.', portion: null };
+  }
+  if (!GOAL_LIMIT_POLICY[goal].applies) {
+    return { stance: 'eat', rank: 0, reason: 'Your goal does not call for holding this back.', portion: null };
+  }
+
+  const s: Signal[] = [];
+  let relief = 0;
+
+  switch (goal) {
+    case 'lose_fat': {
+      s.push({
+        weight: clamp((kcal - 110) / 6, 0, 28),
+        reason: `${kcal} kcal a serving is a real slice of a deficit.`,
+        portion: `Measure it — one serving is ${food.serving ?? 'a portion'}, and a second one doubles the cost.`,
+      });
+      if (ed !== null && ed >= 350 && kcal >= 100) {
+        s.push({
+          weight: clamp((ed - 350) / 12, 0, 18),
+          reason: `${ed} kcal per 100 g — a small extra handful costs more than it looks like it should.`,
+          portion: 'Weigh it once so you know what the portion actually looks like.',
+        });
+      }
+      s.push({
+        weight: clamp((6 - p100) * 5, 0, 30),
+        reason: `Only ${round(p100, 1)} g of protein per 100 kcal — it brings energy without the fullness protein buys.`,
+        portion: 'Pair it with a protein source so the meal still holds you.',
+      });
+      if (p.fatShare >= 55 && p100 < 8) {
+        s.push({ weight: 10, reason: `${p.fatShare}% of its calories are fat — the densest macro, and the easiest to under-count.`, portion: 'Serve it with a spoon, not a pour.' });
+      }
+      if (tags.includes('drink') && kcal >= 50) {
+        s.push({ weight: 12, reason: 'Liquid calories barely register as food — you will be as hungry afterwards.', portion: 'Drink it alongside a meal rather than instead of one.' });
+      }
+      if (tags.includes('snack')) {
+        s.push({ weight: 8, reason: 'Snack food is eaten past the point of noticing.', portion: 'Portion it onto a plate instead of eating from the packet.' });
+      }
+      if (veg) relief -= 35;
+      if (fruit) relief -= 15;
+      if (proteinRescue) relief -= 12;
+      return verdictFrom(s, relief, 'Protein-dense and filling — this is what a deficit should be built on.');
+    }
+
+    case 'build_muscle':
+    case 'gain_strength': {
+      s.push({
+        weight: clamp((90 - kcal) / 3, 0, 25),
+        reason: `${kcal} kcal a serving does very little toward the surplus you are trying to hold.`,
+        portion: 'Fine to eat — just not as the thing that fills you before the protein and carbs do.',
+      });
+      s.push({
+        weight: clamp((5 - p100) * 4, 0, 20),
+        reason: `${round(p100, 1)} g of protein per 100 kcal — it feeds the day but supplies little to build with.`,
+        portion: 'Put a protein source on the plate first, then add this.',
+      });
+      if (p.fatShare >= 60 && p100 < 4) {
+        s.push({ weight: 12, reason: `${p.fatShare}% fat with almost no protein — useful calories, but nothing to build from.`, portion: 'Use it to top up calories, not to replace a protein serving.' });
+      }
+      if (veg) {
+        s.push({ weight: 10, reason: 'High volume for the calories — the exact thing that fills a bulker up too early.', portion: 'Eat it after your protein and carbs, not before them.' });
+      }
+      if (tags.includes('drink') && p100 < 3) {
+        s.push({ weight: 8, reason: 'Fills the stomach without contributing to the session or the recovery.', portion: 'Keep it away from the half hour before a meal.' });
+      }
+      if (proteinRescue) relief -= 20;
+      if (p.carbShare >= 55 && kcal >= 80) relief -= 12;
+      return verdictFrom(s, relief, 'Protein or fuel in a form your training can actually use — eat this without thinking about it.');
+    }
+
+    case 'improve_endurance': {
+      s.push({
+        weight: clamp((45 - p.carbShare) * 0.5, 0, 25),
+        reason: `Only ${p.carbShare}% of its calories are carbohydrate — not the fuel a long session burns.`,
+        portion: 'Move it to a meal well away from your key sessions.',
+      });
+      if (p.fatShare >= 50) {
+        s.push({ weight: 15, reason: `${p.fatShare}% fat digests slowly — uncomfortable sitting in you when the session starts.`, portion: 'Leave 3+ hours between this and a hard session.' });
+      }
+      if (kcal >= 150 && p.carbShare < 30) {
+        s.push({ weight: 8, reason: 'A heavy serving that does not refill glycogen.', portion: 'Keep it for rest days and easy days.' });
+      }
+      if (veg) relief -= 10;
+      if (p.carbShare >= 60) relief -= 15;
+      // Endurance restricts nothing outright — protein still repairs what the
+      // sessions break down, so a protein source can only ever be a timing note.
+      relief -= clamp(food.protein_g * 0.8, 0, 16);
+      return verdictFrom(s, relief, 'Carb-led and easy to digest — this is what fuels the work.');
+    }
+
+    default:
+      return { stance: 'eat', rank: 0, reason: 'Your goal does not call for holding this back.', portion: null };
+  }
+}
+
+export interface PlateEntry {
+  food: FoodItem;
+  verdict: StanceVerdict;
+  fit: GoalFit;
+}
+
+export interface GoalPlate {
+  policy: GoalLimitPolicy;
+  /** Foods that pull toward the goal, best first. */
+  eat: PlateEntry[];
+  /** Foods to go easy on. Always empty when the goal does not call for restriction. */
+  easy: PlateEntry[];
+}
+
+/**
+ * The two-sided answer: what to lean on, and what to go easy on — but only
+ * where the goal earns a "go easy" list. Goals like maintaining or mobility
+ * get staples and an explicit note that nothing needs restricting, rather
+ * than a manufactured list of forbidden foods.
+ */
+export function goalPlate(foods: FoodItem[], goal: GoalKind, limit = 4): GoalPlate {
+  const policy = GOAL_LIMIT_POLICY[goal];
+  const scored = foods
+    .filter((f) => f.calories >= 10)
+    .map((food) => ({ food, verdict: foodStance(food, goal), fit: goalFit(food, goal) }));
+
+  const eat = scored
+    .filter((e) => e.verdict.stance === 'eat')
+    .sort((a, b) => b.fit.rank - a.fit.rank)
+    .slice(0, limit);
+
+  // Building muscle scores whole plant food as "volume that fills you early",
+  // which is true but makes a list headed by broccoli read as "avoid vegetables".
+  // The nuance survives on the food itself; the list stays off that hook.
+  const crowdingGoal = goal === 'build_muscle' || goal === 'gain_strength';
+  const easy = policy.applies
+    ? scored
+      .filter((e) => e.verdict.stance !== 'eat')
+      .filter((e) => !(crowdingGoal && (e.food.tags.includes('vegetable') || e.food.tags.includes('fruit'))))
+      .sort((a, b) => b.verdict.rank - a.verdict.rank)
+      .slice(0, limit)
+    : [];
+
+  return { policy, eat, easy };
+}

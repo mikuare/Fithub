@@ -1,16 +1,36 @@
-import { ExternalLink, Lock, PlayCircle, ShieldCheck, Sparkles } from 'lucide-react';
+import { useState } from 'react';
+import { ExternalLink, ImageOff, Lock, PlayCircle, ShieldCheck, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { MuscleMap } from '@/components/MuscleMap';
 import { useHasFeature } from '@/lib/selectors';
 import { exerciseGuideFor } from '@/lib/fitness/exerciseGuides';
 import { cn } from '@/lib/utils';
 import type { Exercise } from '@/types';
+
+/**
+ * What stands in when the artwork will not load — offline, host down, or a
+ * dead asset. A broken-image icon tells the user nothing; the muscle map tells
+ * them what the movement trains, which is most of what the photo was for.
+ */
+function GuideFallback({ exercise, className }: { exercise: Exercise; className?: string }) {
+  return (
+    <div className={cn('flex flex-col items-center justify-center gap-2 bg-surface-2 px-3 py-4 text-center', className)}>
+      <MuscleMap primary={exercise.primary} secondary={exercise.secondary} view="both" size={68} />
+      <p className="flex items-center gap-1.5 text-2xs text-ink-3 leading-relaxed">
+        <ImageOff size={11} aria-hidden />
+        <span>Artwork unavailable — this is what it trains. The cues below still apply.</span>
+      </p>
+    </div>
+  );
+}
 
 export function ExerciseVisualGuide({ exercise, compact = false }: {
   exercise: Exercise;
   compact?: boolean;
 }) {
   const entitled = useHasFeature('exercise_guides');
+  const [failed, setFailed] = useState<string[]>([]);
 
   if (!entitled) {
     return (
@@ -47,26 +67,38 @@ export function ExerciseVisualGuide({ exercise, compact = false }: {
         <span className="absolute left-3 top-3 z-10">
           <Badge tone="brand" size="sm" icon={<Sparkles size={10} aria-hidden />}>Visual guide</Badge>
         </span>
-        <div className={cn('grid', guide.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
-          {guide.images.map((image, index) => (
-            <figure key={image.src} className={cn('relative overflow-hidden', index > 0 && 'border-l border-line')}>
-              <img
-                src={image.src}
-                alt={image.alt}
-                loading="lazy"
-                className={cn(
-                  'w-full object-cover',
-                  guide.images.length > 1 ? 'aspect-square' : compact ? 'aspect-[2/1]' : 'aspect-[16/7]',
-                )}
-              />
-              {image.label && (
-                <figcaption className="absolute bottom-2 left-2 rounded-md bg-bg/85 px-2 py-1 text-2xs font-bold uppercase tracking-wider text-ink backdrop-blur">
-                  {image.label}
-                </figcaption>
-              )}
-            </figure>
-          ))}
-        </div>
+        {guide.images.every((image) => failed.includes(image.src)) ? (
+          <GuideFallback
+            exercise={exercise}
+            className={compact ? 'aspect-[2/1]' : 'aspect-[16/7]'}
+          />
+        ) : (
+          <div className={cn('grid', guide.images.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
+            {guide.images.map((image, index) => {
+              const ratio = guide.images.length > 1 ? 'aspect-square' : compact ? 'aspect-[2/1]' : 'aspect-[16/7]';
+              return (
+                <figure key={image.src} className={cn('relative overflow-hidden', index > 0 && 'border-l border-line')}>
+                  {failed.includes(image.src) ? (
+                    <GuideFallback exercise={exercise} className={ratio} />
+                  ) : (
+                    <img
+                      src={image.src}
+                      alt={image.alt}
+                      loading="lazy"
+                      onError={() => setFailed((prev) => (prev.includes(image.src) ? prev : [...prev, image.src]))}
+                      className={cn('w-full object-cover', ratio)}
+                    />
+                  )}
+                  {image.label && !failed.includes(image.src) && (
+                    <figcaption className="absolute bottom-2 left-2 rounded-md bg-bg/85 px-2 py-1 text-2xs font-bold uppercase tracking-wider text-ink backdrop-blur">
+                      {image.label}
+                    </figcaption>
+                  )}
+                </figure>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className={compact ? 'p-4' : 'p-5'}>

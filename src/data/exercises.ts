@@ -1745,6 +1745,185 @@ export const EXERCISES: Exercise[] = [
     beginner_variation: 'Use one leg at a time and less bodyweight.',
     advanced_variation: 'Add slow knee flexion and extension while paused on a tender spot.',
   }),
+
+  /* ================== ANCHORED RESISTANCE BANDS ==================
+     What a door-anchored tube set can actually do. Without these the
+     app could describe a band chest press but never programme one,
+     because nothing in the library matched the kit. */
+  ex({
+    slug: 'banded-chest-press', name: 'Banded Chest Press', category: 'chest',
+    primary: ['chest'], secondary: ['triceps', 'shoulders'],
+    equipment: ['bands'], difficulty: 'beginner', mechanic: 'compound', force: 'push', met: 4,
+    instructions: [
+      'Anchor the band at chest height and face away from the door with a handle in each hand.',
+      'Bring your hands to your chest, elbows tucked to roughly 45° from your body.',
+      'Step forward until the band is already tight with your hands still at your chest.',
+      'Split your stance, brace your middle and press both handles straight forward until your arms are long.',
+      'Return over about three seconds, letting your hands come back level with your chest.',
+    ],
+    mistakes: [
+      'Standing too close, so the first half of the press has no tension in it.',
+      'Letting the band pull your hands behind your body at the end of the rep.',
+      'Feet square and level, so the band drags you backwards as it tightens.',
+    ],
+    safety: ['Check the tube for splits before every set.', 'Stand beside the line of the band, never with your face along it.'],
+    alternatives: ['push-up', 'dumbbell-bench-press', 'machine-chest-press'],
+    beginner_variation: 'One tube, and step closer to the anchor.',
+    advanced_variation: 'Press one arm at a time and resist the rotation.',
+  }),
+  ex({
+    slug: 'banded-row', name: 'Banded Row', category: 'back',
+    primary: ['back', 'lats'], secondary: ['biceps', 'traps'],
+    equipment: ['bands'], difficulty: 'beginner', mechanic: 'compound', force: 'pull', met: 4,
+    instructions: [
+      'Anchor the band at chest height and face the door with a handle in each hand.',
+      'Step back until the band is tight with your arms straight out in front of you.',
+      'Sit into a quarter squat, chest up, and pull both handles to the sides of your ribs.',
+      'Squeeze your shoulder blades together at the end of the pull.',
+      'Let your arms straighten slowly over about three seconds.',
+    ],
+    mistakes: ['Leaning back to move a heavier stack.', 'Shrugging the shoulders up instead of pulling them back.'],
+    safety: ['Keep the tube clear of the door edge so it cannot chafe.'],
+    alternatives: ['dumbbell-row', 'seated-cable-row', 'inverted-row'],
+    beginner_variation: 'Sit on the floor with the band anchored low and row from there.',
+    advanced_variation: 'Row one arm at a time, resisting the twist through your middle.',
+  }),
+  ex({
+    slug: 'banded-lat-pulldown', name: 'Banded Lat Pulldown', category: 'back',
+    primary: ['lats'], secondary: ['biceps', 'back'],
+    equipment: ['bands'], difficulty: 'beginner', mechanic: 'compound', force: 'pull', met: 4,
+    instructions: [
+      'Anchor the band as high as the door allows and kneel or stand facing it.',
+      'Take a handle in each hand with your arms straight overhead and the band already tight.',
+      'Pull your elbows down and back toward your ribs, leading with the elbows rather than the hands.',
+      'Pause when your hands reach shoulder height and your lats are fully engaged.',
+      'Let your arms rise slowly back overhead under control.',
+    ],
+    mistakes: ['Pulling with the hands and forearms so the arms tire before the back.', 'Leaning far back and turning it into a row.'],
+    safety: ['Make sure the anchor is above head height, or the angle does nothing for the lats.'],
+    alternatives: ['lat-pulldown', 'pull-up', 'straight-arm-pulldown'],
+    beginner_variation: 'Kneel down to get a better angle with a low door anchor.',
+    advanced_variation: 'Pull one arm at a time and pause for two seconds at the bottom.',
+  }),
+  ex({
+    slug: 'banded-overhead-press', name: 'Banded Overhead Press', category: 'shoulders',
+    primary: ['shoulders'], secondary: ['triceps', 'core'],
+    equipment: ['bands'], difficulty: 'beginner', mechanic: 'compound', force: 'push', met: 4,
+    instructions: [
+      'Stand on the middle of the tube with both feet, or anchor it at floor level.',
+      'Hold a handle at each shoulder with your palms facing forward.',
+      'Brace your middle and press both handles straight overhead until your arms are long.',
+      'Keep your ribs down — the band will try to pull you into an arch.',
+      'Lower slowly back to shoulder height.',
+    ],
+    mistakes: ['Arching the lower back to finish the press.', 'Pressing forward instead of straight up.'],
+    safety: ['Stand on the tube with both feet so it cannot slip out and snap upward.'],
+    alternatives: ['overhead-press', 'dumbbell-shoulder-press', 'arnold-press'],
+    beginner_variation: 'Press one arm at a time with a lighter tube.',
+    advanced_variation: 'Pause for two seconds with the arms locked out overhead.',
+  }),
+  ex({
+    slug: 'banded-lateral-raise', name: 'Banded Lateral Raise', category: 'shoulders',
+    primary: ['shoulders'], secondary: [],
+    equipment: ['bands'], difficulty: 'beginner', mechanic: 'isolation', force: 'pull', met: 3,
+    instructions: [
+      'Stand on the middle of the tube with one foot and hold a handle in the opposite hand.',
+      'Start with your arm by your side and a slight bend in the elbow.',
+      'Raise your arm out to the side until your hand is level with your shoulder.',
+      'Lower slowly, keeping tension the whole way down.',
+      'Finish all the reps on one side, then swap.',
+    ],
+    mistakes: ['Swinging the body to start the rep.', 'Raising above shoulder height, which hands the work to the traps.'],
+    safety: ['Use the lightest tube — this is a small muscle and a short lever.'],
+    alternatives: ['lateral-raise', 'cable-lateral-raise', 'machine-lateral-raise'],
+    beginner_variation: 'Hold the tube shorter for less tension.',
+    advanced_variation: 'Pause for a second at the top of every rep.',
+  }),
+  ex({
+    slug: 'banded-squat', name: 'Banded Squat', category: 'legs',
+    primary: ['quads', 'glutes'], secondary: ['core'],
+    equipment: ['bands'], difficulty: 'beginner', mechanic: 'compound', force: 'push', met: 5,
+    instructions: [
+      'Stand on the middle of the tube with feet shoulder-width apart.',
+      'Bring the handles up to your shoulders so the band runs outside your legs.',
+      'Brace your middle, push your hips back and bend your knees to squat down.',
+      'Go as deep as you can with a flat back and your heels down.',
+      'Drive through the whole foot to stand, keeping the handles pinned to your shoulders.',
+    ],
+    mistakes: ['Letting the handles drift forward, which pulls you into a bow.', 'Standing on the tube unevenly so one side loads harder.'],
+    safety: ['Check the tube is centred underfoot before every set — a tube that slips out from under a foot snaps upward.'],
+    alternatives: ['goblet-squat', 'bodyweight-squat', 'back-squat'],
+    beginner_variation: 'Squat to a chair with one tube.',
+    advanced_variation: 'Pause for three seconds at the bottom of every rep.',
+  }),
+  ex({
+    slug: 'banded-romanian-deadlift', name: 'Banded Romanian Deadlift', category: 'legs',
+    primary: ['hamstrings', 'glutes'], secondary: ['lower_back'],
+    equipment: ['bands'], difficulty: 'beginner', mechanic: 'compound', force: 'pull', met: 4,
+    instructions: [
+      'Stand on the middle of the tube with feet hip-width apart and a handle in each hand.',
+      'Stand tall with your arms straight down in front of your thighs.',
+      'Push your hips back and let your hands travel down your legs, keeping your back flat.',
+      'Stop when you feel a strong stretch behind your thighs, around knee height.',
+      'Drive your hips forward to stand tall, squeezing your glutes at the top.',
+    ],
+    mistakes: ['Rounding the back to reach lower.', 'Bending the knees so it becomes a squat.'],
+    safety: ['Stop at the point where your back would round — that range is the whole exercise.'],
+    alternatives: ['romanian-deadlift', 'good-morning', 'glute-bridge'],
+    beginner_variation: 'Use one tube and a shorter range.',
+    advanced_variation: 'Stand on one leg and do it unilaterally.',
+  }),
+  ex({
+    slug: 'banded-bicep-curl', name: 'Banded Bicep Curl', category: 'biceps',
+    primary: ['biceps'], secondary: ['forearms'],
+    equipment: ['bands'], difficulty: 'beginner', mechanic: 'isolation', force: 'pull', met: 3,
+    instructions: [
+      'Stand on the middle of the tube with both feet and hold a handle in each hand, palms forward.',
+      'Keep your elbows pinned to your sides.',
+      'Curl both handles up toward your shoulders without letting the elbows drift forward.',
+      'Squeeze at the top where the band is tightest.',
+      'Lower over about three seconds against the tension.',
+    ],
+    mistakes: ['Swinging the elbows forward to shorten the range.', 'Letting the band snap the hands back down.'],
+    safety: ['Keep both feet on the tube so tension stays even.'],
+    alternatives: ['dumbbell-curl', 'barbell-curl', 'cable-curl'],
+    beginner_variation: 'One tube, hands closer together.',
+    advanced_variation: 'Curl one arm at a time and pause at the top.',
+  }),
+  ex({
+    slug: 'banded-triceps-pressdown', name: 'Banded Triceps Pressdown', category: 'triceps',
+    primary: ['triceps'], secondary: [],
+    equipment: ['bands'], difficulty: 'beginner', mechanic: 'isolation', force: 'push', met: 3,
+    instructions: [
+      'Anchor the band high on the door and face it with a handle in each hand.',
+      'Tuck your elbows to your sides and start with your hands at chest height.',
+      'Press your hands down until your arms are straight, keeping the elbows still.',
+      'Squeeze the triceps at the bottom where the band is tightest.',
+      'Let your hands rise slowly back to chest height.',
+    ],
+    mistakes: ['Letting the elbows travel forward and back so the shoulders take over.', 'Leaning over the band to push harder.'],
+    safety: ['Make sure the anchor is above head height or the angle is wrong.'],
+    alternatives: ['triceps-pushdown', 'overhead-triceps-extension', 'bench-dip'],
+    beginner_variation: 'Step closer to the anchor with one tube.',
+    advanced_variation: 'Press one arm at a time with a two-second hold at the bottom.',
+  }),
+  ex({
+    slug: 'banded-glute-kickback', name: 'Banded Glute Kickback', category: 'glutes',
+    primary: ['glutes'], secondary: ['hamstrings'], unilateral: true,
+    equipment: ['bands', 'ankle_strap'], difficulty: 'beginner', mechanic: 'isolation', force: 'push', met: 4,
+    instructions: [
+      'Anchor the band at floor level and buckle the ankle cuff to your working ankle.',
+      'Face the anchor and hold something solid for balance.',
+      'Step back until there is tension with the working leg still under your hip.',
+      'Drive the leg straight back from the hip, squeezing the glute at the end.',
+      'Return slowly over about three seconds, then finish the set before swapping legs.',
+    ],
+    mistakes: ['Arching the lower back to get the leg higher.', 'Swinging the leg rather than driving from the hip.'],
+    safety: ['Sit the cuff just above the ankle bone, not on it.', 'Keep the standing knee soft.'],
+    alternatives: ['cable-kickback', 'glute-bridge', 'hip-thrust'],
+    beginner_variation: 'Use one tube and a shorter range.',
+    advanced_variation: 'Pause for two seconds at the end of every rep.',
+  }),
 ];
 
 /** slug -> Exercise, for O(1) lookups everywhere in the app. */
@@ -1787,7 +1966,7 @@ export const EQUIPMENT_LABEL: Record<string, string> = {
   ankle_strap: 'Ankle strap', power_twister: 'Power twister', ab_wheel: 'Ab wheel',
   suspension: 'Suspension trainer', foam_roller: 'Foam roller', stability_ball: 'Stability ball',
   dip_bars: 'Dip bars', elliptical: 'Elliptical trainer', mat: 'Exercise mat',
-  hand_gripper: 'Hand gripper',
+  hand_gripper: 'Hand gripper', band_set: 'Resistance band set (11pc)',
 };
 
 /**
@@ -1796,9 +1975,28 @@ export const EQUIPMENT_LABEL: Record<string, string> = {
  * small stuff that lives in a cupboard at home. Onboarding and the profile
  * editor both read this, so the two can never drift apart again.
  */
+/**
+ * Kit that comes bundled inside other kit. Ticking the boxed band set means you
+ * own tube bands, a door anchor and a pair of ankle cuffs — so everything
+ * written for those becomes available without making the user tick three boxes
+ * and without duplicating a single exercise definition.
+ */
+export const IMPLIED_EQUIPMENT: Partial<Record<Equipment, Equipment[]>> = {
+  band_set: ['bands', 'ankle_strap'],
+};
+
+/** Everything `equipment` unlocks, bundled kit expanded, bodyweight included. */
+export function expandEquipment(equipment: Equipment[]): Set<Equipment> {
+  const owned = new Set<Equipment>([...equipment, 'bodyweight']);
+  for (const item of equipment) {
+    for (const implied of IMPLIED_EQUIPMENT[item] ?? []) owned.add(implied);
+  }
+  return owned;
+}
+
 export const EQUIPMENT_OPTIONS: Equipment[] = [
   'bodyweight', 'dumbbells', 'barbell', 'bench', 'squat_rack', 'cable', 'machine',
-  'smith', 'kettlebell', 'bands', 'pullup_bar', 'dip_bars', 'treadmill', 'bike',
+  'smith', 'kettlebell', 'bands', 'band_set', 'pullup_bar', 'dip_bars', 'treadmill', 'bike',
   'rower', 'elliptical', 'medicine_ball', 'stability_ball', 'jump_rope', 'box',
   'ab_wheel', 'ankle_strap', 'power_twister', 'hand_gripper', 'suspension',
   'foam_roller', 'mat',

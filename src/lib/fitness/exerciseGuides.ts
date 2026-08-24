@@ -112,6 +112,16 @@ const FITHUB_IMAGE_SLUGS = new Set([
 ]);
 
 /**
+ * Drawn by scripts/make-band-guides.mjs as SVG rather than PNG: they are line
+ * drawings, so they stay crisp at any size and cost a fraction of the weight.
+ */
+const FITHUB_SVG_SLUGS = new Set([
+  'banded-chest-press', 'banded-row', 'banded-lat-pulldown', 'banded-overhead-press',
+  'banded-lateral-raise', 'banded-squat', 'banded-romanian-deadlift',
+  'banded-bicep-curl', 'banded-triceps-pressdown', 'banded-glute-kickback',
+]);
+
+/**
  * Every library exercise gets a useful visual-reference destination without
  * depending on a brittle list of individual video IDs. The exact exercise
  * name and "proper form" keep the results focused while allowing YouTube to
@@ -124,14 +134,15 @@ export function exerciseGuideFor(
   const middle = Math.floor((instructions.length - 1) / 2);
   const query = `${exercise.name} exercise proper form tutorial`;
 
-  if (FITHUB_IMAGE_SLUGS.has(exercise.slug)) {
+  if (FITHUB_IMAGE_SLUGS.has(exercise.slug) || FITHUB_SVG_SLUGS.has(exercise.slug)) {
+    const ext = FITHUB_SVG_SLUGS.has(exercise.slug) ? 'svg' : 'png';
     return {
       videoUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`,
       setupCue: instructions[0] ?? `Set up for ${exercise.name} with a stable, comfortable position.`,
       movementCue: instructions[middle] ?? instructions[0] ?? 'Move slowly and stay in control.',
       finishCue: instructions[instructions.length - 1] ?? 'Return to the starting position under control.',
       images: [{
-        src: `/exercise-guides/${exercise.slug}.png`,
+        src: `/exercise-guides/${exercise.slug}.${ext}`,
         alt: `${exercise.name} start and finish positions`,
       }],
       imageSource: 'fithub',

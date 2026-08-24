@@ -2,7 +2,7 @@ import type {
   Exercise, Experience, FitnessProfile, GoalKind, MuscleGroup, PlannedExercise,
   Program, ProgramDay, SessionKind, Weekday, Equipment, Difficulty,
 } from '@/types';
-import { EXERCISES } from '@/data/exercises';
+import { EXERCISES, expandEquipment } from '@/data/exercises';
 import { repScheme } from './calculations';
 import { uid } from '@/lib/id';
 import { nowISO } from '@/lib/date';
@@ -232,11 +232,8 @@ export function chooseSplit(daysPerWeek: number, experience: Experience, goal: G
 const DIFFICULTY_RANK: Record<Difficulty, number> = { beginner: 0, intermediate: 1, advanced: 2 };
 const EXPERIENCE_CEILING: Record<Experience, number> = { beginner: 0, intermediate: 1, advanced: 2 };
 
-/** Equipment the user can always use, whatever they ticked. */
-const ALWAYS_AVAILABLE: Equipment[] = ['bodyweight'];
-
 export function canPerform(exercise: Exercise, equipment: Equipment[]): boolean {
-  const owned = new Set<Equipment>([...equipment, ...ALWAYS_AVAILABLE]);
+  const owned = expandEquipment(equipment);
   return exercise.equipment.every((e) => owned.has(e));
 }
 

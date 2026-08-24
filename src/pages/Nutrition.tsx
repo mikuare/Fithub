@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Apple, Plus, Droplets, Trash2, Search, Info, Calculator, Save, ChevronLeft, ChevronRight,
-  ScanBarcode, Target, Sparkles,
+  ScanBarcode, Target, Sparkles, Scale, Check, AlertTriangle, Activity,
 } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/Button';
@@ -18,9 +18,12 @@ import { FOODS, type FoodItem } from '@/data/foods';
 import { HABIT_STEP } from '@/data/habits';
 import { bmr, tdee, activityLevelFromDays } from '@/lib/fitness/calculations';
 import {
-  foodBenefits, goalEatingStrategy, goalFit, remainingMacros, suggestFoods,
-  GOAL_FIT_META, GOAL_LABEL,
+  foodBenefits, foodStance, goalEatingStrategy, goalFit, goalPlate, remainingMacros, suggestFoods,
+  GOAL_FIT_META, GOAL_LABEL, STANCE_META,
 } from '@/lib/fitness/foodiq';
+import {
+  BALANCE_META, currentWeightKg, energyVerdict,
+} from '@/lib/fitness/energyBalance';
 import { ageFrom, addDays, formatDate, relativeDay, today } from '@/lib/date';
 import { cn, formatNumber, matches } from '@/lib/utils';
 import { toast } from '@/store/toast';
@@ -39,6 +42,7 @@ export default function Nutrition() {
   const habits = useData((s) => s.habits);
   const habitLogs = useData((s) => s.habitLogs);
   const fitnessProfile = useData((s) => s.fitnessProfile);
+  const measurements = useData((s) => s.measurements);
   const addNutrition = useData((s) => s.addNutrition);
   const logHabit = useData((s) => s.logHabit);
   const del = useData((s) => s.del);
@@ -69,31 +73,56 @@ export default function Nutrition() {
     ? habitLogs.find((l) => l.habit_id === waterHabit.id && l.date === date)?.value ?? 0
     : 0;
 
+  const goal: GoalKind = fitnessProfile?.primary_goal ?? 'general_fitness';
+  // The profile weight is captured once at onboarding. Planning from it means a
+  // deficit built for the starting weight silently becomes maintenance as it works.
+  const weightKg = useMemo(
+    () => currentWeightKg(measurements, fitnessProfile),
+    [measurements, fitnessProfile],
+  );
+
   const estimated = useMemo(() => {
     if (!fitnessProfile) return null;
-    const basal = bmr(fitnessProfile.weight_kg, fitnessProfile.height_cm, ageFrom(fitnessProfile.birth_date), fitnessProfile.gender);
+    const basal = bmr(weightKg, fitnessProfile.height_cm, ageFrom(fitnessProfile.birth_date), fitnessProfile.gender);
     if (basal === null) return null;
     const maintenance = tdee(basal, activityLevelFromDays(fitnessProfile.days_per_week));
     if (maintenance === null) return null;
-    const goalAdjust =
-      fitnessProfile.primary_goal === 'lose_fat' ? -0.18
-        : fitnessProfile.primary_goal === 'build_muscle' ? 0.1
-        : 0;
+    const goalAdjust = goal === 'lose_fat' ? -0.18 : goal === 'build_muscle' ? 0.1 : 0;
     const calories = Math.round(maintenance * (1 + goalAdjust));
-    const protein = Math.round((fitnessProfile.weight_kg ?? 70) * (fitnessProfile.primary_goal === 'lose_fat' ? 2.2 : 1.8));
+    // One source of truth for protein: the same range the guidance card quotes,
+    // so the target and the advice can never contradict each other on screen.
+    const range = goalEatingStrategy(goal, weightKg).proteinPerDayG;
+    const protein = range ? Math.round((range[0] + range[1]) / 2) : Math.round((weightKg ?? 70) * 1.6);
     const fat = Math.round((calories * 0.27) / 9);
     const carbs = Math.max(0, Math.round((calories - protein * 4 - fat * 9) / 4));
     return { basal, maintenance, calories, protein, fat, carbs };
-  }, [fitnessProfile]);
+  }, [fitnessProfile, weightKg, goal]);
+
+  // "I set these myself" being off promises FitHub refreshes the estimate as
+  // weight changes. Nothing honoured that, so the promise is kept here — but
+  // only on a drift worth a toast, never on a one-calorie rounding wobble.
+  useEffect(() => {
+    if (!targets || targets.manual || !estimated) return;
+    const drifted = Math.abs(targets.calories - estimated.calories) >= 40
+      || Math.abs(targets.protein_g - estimated.protein) >= 5;
+    if (!drifted) return;
+    void put('nutrition_targets', {
+      ...targets,
+      calories: estimated.calories, protein_g: estimated.protein,
+      carbs_g: estimated.carbs, fat_g: estimated.fat, manual: false,
+    });
+    toast.info('Targets refreshed', `Your weight changed, so your target moved to ${formatNumber(estimated.calories)} kcal.`);
+  }, [targets, estimated, put]);
 
   if (!targets) return null;
 
-  const goal: GoalKind = fitnessProfile?.primary_goal ?? 'general_fitness';
-  const strategy = goalEatingStrategy(goal, fitnessProfile?.weight_kg ?? null);
+  const strategy = goalEatingStrategy(goal, weightKg);
   const remaining = remainingMacros(totals, {
     calories: targets.calories, protein_g: targets.protein_g, carbs_g: targets.carbs_g, fat_g: targets.fat_g,
   });
   const suggestions = date === today() ? suggestFoods(FOODS, remaining, goal) : [];
+  const plate = goalPlate(FOODS, goal);
+  const verdict = energyVerdict(measurements, goal, targets.calories);
 
   const defaultScanSlot = (): MealSlot => {
     const h = new Date().getHours();
@@ -173,6 +202,68 @@ export default function Nutrition() {
             </div>
           </Card>
 
+          {/* Is it working? — closes the loop between what is eaten and what the scale says */}
+          <Card className={cn(
+            verdict.status === 'on_track' && 'border-success/30',
+            verdict.status === 'wrong_way' && 'border-danger/30',
+          )}>
+            <CardHeader
+              title="Is it working?"
+              subtitle={`Your weight trend against ${GOAL_LABEL[goal]}`}
+              dense
+              icon={<Activity size={16} className="text-ink-3" />}
+              action={<Badge tone={BALANCE_META[verdict.status].tone} size="sm">{BALANCE_META[verdict.status].label}</Badge>}
+            />
+            <div className="px-4 pb-4 pt-2 space-y-2.5">
+              <p className="text-sm font-semibold leading-snug">{verdict.headline}</p>
+
+              {verdict.trend && verdict.band.directional && (
+                <div className="rounded-xl bg-surface-2 border border-line p-3 space-y-1">
+                  <div className="flex justify-between gap-3">
+                    <span className="text-ink-3 text-xs">Your trend</span>
+                    <span className="tabular font-bold text-xs">
+                      {verdict.trend.kgPerWeek > 0 ? '+' : ''}{verdict.trend.kgPerWeek} kg / week
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-ink-3 text-xs">This goal needs</span>
+                    <span className="tabular font-bold text-xs text-right">{verdict.band.label}</span>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-2xs text-ink-3 leading-relaxed">{verdict.detail}</p>
+
+              {verdict.suggestedCalories !== null && verdict.deltaKcal !== null && (
+                <>
+                  <Button
+                    size="sm" variant="outline" block
+                    onClick={() => {
+                      const calories = verdict.suggestedCalories!;
+                      // Protein holds. It is the macro protecting muscle, and cutting
+                      // it alongside calories is how a deficit costs you the training.
+                      const protein_g = targets.protein_g;
+                      const fat_g = Math.round((calories * 0.27) / 9);
+                      const carbs_g = Math.max(0, Math.round((calories - protein_g * 4 - fat_g * 9) / 4));
+                      void put('nutrition_targets', { ...targets, calories, protein_g, carbs_g, fat_g, manual: true });
+                      toast.success('Target adjusted', `${formatNumber(calories)} kcal, from your own weight trend.`);
+                    }}
+                  >
+                    {verdict.deltaKcal > 0 ? 'Add' : 'Cut'} {Math.abs(verdict.deltaKcal)} kcal → {formatNumber(verdict.suggestedCalories)}
+                  </Button>
+                  <p className="text-2xs text-ink-3 leading-relaxed">
+                    Applying this hands your target over to what your body is actually doing, and FitHub
+                    stops re-estimating it from the formula. Give any change three weeks before judging it.
+                  </p>
+                </>
+              )}
+
+              {verdict.action && (
+                <p className="text-2xs text-ink-3 leading-relaxed border-t border-line pt-2">{verdict.action}</p>
+              )}
+            </div>
+          </Card>
+
           {/* Eat for your goal */}
           <Card className="border-brand/30">
             <CardHeader title="Eat for your goal" subtitle={`You're ${GOAL_LABEL[goal]}`} dense icon={<Target size={16} className="text-brand-text" />} />
@@ -226,6 +317,58 @@ export default function Nutrition() {
               <p className="text-2xs text-ink-3 leading-relaxed border-t border-line pt-2">
                 General fitness guidance from mainstream sports-nutrition ranges — not a prescription.
               </p>
+            </div>
+          </Card>
+
+          {/* Eat / go easy — only restrictive where the goal actually calls for it */}
+          <Card>
+            <CardHeader
+              title="Eat this, go easy on that"
+              subtitle={plate.policy.rule}
+              dense
+              icon={<Scale size={16} className="text-ink-3" />}
+            />
+            <div className="px-4 pb-4 pt-2 space-y-3">
+              <section>
+                <p className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wide text-success mb-1.5">
+                  <Check size={12} /> {plate.policy.eatHeading}
+                </p>
+                <ul className="space-y-1.5">
+                  {plate.eat.map((e) => (
+                    <li key={e.food.name} className="text-xs leading-snug">
+                      <p className="font-medium">{e.food.name}</p>
+                      <p className="text-2xs text-ink-3">{e.fit.reasons[0]}</p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+
+              {plate.policy.applies ? (
+                <section className="border-t border-line pt-3">
+                  <p className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wide text-warn mb-1.5">
+                    <AlertTriangle size={12} /> {plate.policy.limitHeading}
+                  </p>
+                  <ul className="space-y-1.5">
+                    {plate.easy.map((e) => (
+                      <li key={e.food.name} className="text-xs leading-snug">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <p className="font-medium truncate">{e.food.name}</p>
+                          <span className="shrink-0 text-2xs text-ink-3">{STANCE_META[e.verdict.stance].label}</span>
+                        </div>
+                        <p className="text-2xs text-ink-3">{e.verdict.reason}</p>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2.5 text-2xs text-ink-3 leading-relaxed">
+                    Nothing here is off limits. These are the foods where the portion, not the food, is what
+                    decides whether you reach your goal.
+                  </p>
+                </section>
+              ) : (
+                <p className="border-t border-line pt-3 text-2xs text-ink-3 leading-relaxed">
+                  {plate.policy.noLimitNote}
+                </p>
+              )}
             </div>
           </Card>
 
@@ -531,6 +674,7 @@ function FoodModal({ slot, goal, onScan, onClose, onAdd }: {
 /** What the selected food does for you, scored against the goal you actually train for. */
 function FoodIQPanel({ food, goal }: { food: FoodItem; goal: GoalKind }) {
   const fit = goalFit(food, goal);
+  const stance = foodStance(food, goal);
   const benefits = foodBenefits(food).slice(0, 2);
   return (
     <div className="mt-3 rounded-xl border border-line bg-surface-2/60 p-3.5 animate-fade-in">
@@ -556,6 +700,15 @@ function FoodIQPanel({ food, goal }: { food: FoodItem; goal: GoalKind }) {
           <li className="text-xs leading-relaxed text-ink-3">{fit.reasons[0]}</li>
         )}
       </ul>
+      {stance.stance !== 'eat' && (
+        <div className="mt-2.5 border-t border-line pt-2.5">
+          <Badge tone={STANCE_META[stance.stance].tone} size="sm">{STANCE_META[stance.stance].label}</Badge>
+          <p className="mt-1.5 text-xs leading-relaxed text-ink-3">{stance.reason}</p>
+          {stance.portion && (
+            <p className="mt-1 text-xs leading-relaxed font-medium">{stance.portion}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -64,7 +64,11 @@ export type Equipment =
   /* Small kit people actually own at home. Adding one here never removes an
      exercise from anybody's programme — it only widens what can be chosen. */
   | 'ankle_strap' | 'power_twister' | 'ab_wheel' | 'suspension' | 'foam_roller'
-  | 'stability_ball' | 'dip_bars' | 'elliptical' | 'mat' | 'hand_gripper';
+  | 'stability_ball' | 'dip_bars' | 'elliptical' | 'mat' | 'hand_gripper'
+  /* The boxed tube-band kit sold as an "11pc set": stackable tubes, two
+     handles, a door anchor and ankle straps. Distinct from loose loop 'bands'
+     because the anchor and cuffs are what unlock most of what it can do. */
+  | 'band_set';
 
 export type Activity =
   | 'weightlifting' | 'running' | 'walking' | 'cycling' | 'hiit'
@@ -492,11 +496,100 @@ export interface FeedPost {
 export interface Gym {
   id: ID;
   name: string;
+  /** Short human-readable code members type to join. Unique across gyms. */
+  join_code: string;
+  description: string;
   address: string;
+  phone: string;
+  email: string;
   timezone: string;
   open_hour: number;
   close_hour: number;
   capacity: number;
+  /** ISO 4217, the currency every price at this gym is quoted in. */
+  currency: string;
+  /** Branding, client-compressed and stored inline like profile avatars. */
+  logo_data_url: string | null;
+  photos: string[];
+  created_by: ID | null;
+  active: boolean;
+  created_at: ISODateTime;
+}
+
+/**
+ * Cash is handed over in person, so anything a gym sells carries its own
+ * settlement state rather than assuming payment happened at booking time.
+ */
+export type PaymentState = 'unpaid' | 'paid' | 'waived';
+
+export const PAYMENT_STATE_LABEL: Record<PaymentState, string> = {
+  unpaid: 'Unpaid',
+  paid: 'Paid',
+  waived: 'Waived',
+};
+
+/** One recurring entry on the gym's weekly timetable. */
+export interface GymClass {
+  id: ID;
+  gym_id: ID;
+  name: string;
+  description: string;
+  weekday: Weekday;
+  /** 'HH:mm' local to the gym. */
+  start_time: string;
+  duration_minutes: number;
+  capacity: number;
+  trainer_id: ID | null;
+  /** Drop-in price. Zero means it is included with any active membership. */
+  price: number;
+  active: boolean;
+}
+
+export type BookingStatus = 'booked' | 'attended' | 'cancelled' | 'no_show';
+
+export const BOOKING_STATUS_LABEL: Record<BookingStatus, string> = {
+  booked: 'Booked',
+  attended: 'Attended',
+  cancelled: 'Cancelled',
+  no_show: 'No-show',
+};
+
+/** A member's spot in one dated occurrence of a class. */
+export interface ClassBooking {
+  id: ID;
+  gym_id: ID;
+  class_id: ID;
+  user_id: ID;
+  /** The specific day this booking is for, not the template's weekday. */
+  date: ISODate;
+  status: BookingStatus;
+  payment: PaymentState;
+  amount: number;
+  currency: string;
+  created_at: ISODateTime;
+  cancelled_at: ISODateTime | null;
+}
+
+export type GymPaymentKind = 'membership' | 'class';
+
+/**
+ * The gym's cash ledger. Method is a union of one today, so adding card later
+ * widens the type instead of reshaping the table.
+ */
+export interface GymPayment {
+  id: ID;
+  gym_id: ID;
+  user_id: ID;
+  kind: GymPaymentKind;
+  /** The membership or booking this settles. */
+  ref_id: ID;
+  amount: number;
+  currency: string;
+  method: 'cash';
+  /** The staff account that took the money. */
+  recorded_by: ID;
+  paid_at: ISODateTime;
+  note: string;
 }
 
 export type MembershipStatus = 'active' | 'expiring' | 'expired' | 'frozen' | 'cancelled';
@@ -509,6 +602,8 @@ export interface MembershipPlan {
   currency: string;
   months: number;
   perks: string[];
+  /** Whether timetable classes are included, rather than paid per drop-in. */
+  includes_classes: boolean;
 }
 
 export interface Membership {
@@ -521,6 +616,7 @@ export interface Membership {
   end_date: ISODate;
   member_code: string;
   auto_renew: boolean;
+  payment: PaymentState;
 }
 
 export interface GymCheckin {

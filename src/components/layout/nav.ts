@@ -64,6 +64,13 @@ export const NAV: NavSection[] = [
     items: [{ to: '/friends', label: 'Friends', icon: 'Users' }],
   },
   {
+    title: 'My Gym',
+    items: [
+      { to: '/gym', label: 'My Gym', icon: 'Store' },
+      { to: '/book', label: 'Book a Class', icon: 'CalendarPlus' },
+    ],
+  },
+  {
     title: 'Coaching',
     minRole: 'trainer',
     items: [
@@ -74,6 +81,8 @@ export const NAV: NavSection[] = [
     title: 'Gym Management',
     minRole: 'staff',
     items: [
+      { to: '/admin/desk', label: 'Front Desk', icon: 'Banknote', minRole: 'staff' },
+      { to: '/admin/gym', label: 'Gym Settings', icon: 'Store', minRole: 'manager' },
       { to: '/admin/attendance', label: 'Attendance', icon: 'ScanLine', minRole: 'staff' },
       { to: '/admin/members', label: 'Members', icon: 'IdCard', minRole: 'staff' },
       { to: '/admin/equipment', label: 'Equipment', icon: 'Wrench', minRole: 'manager' },

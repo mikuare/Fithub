@@ -52,6 +52,10 @@ const Members = lazy(() => import('@/pages/admin/Members'));
 const Equipment = lazy(() => import('@/pages/admin/Equipment'));
 const GymAnalytics = lazy(() => import('@/pages/admin/GymAnalytics'));
 const AuditLogPage = lazy(() => import('@/pages/admin/AuditLogPage'));
+const MyGym = lazy(() => import('@/pages/MyGym'));
+const Book = lazy(() => import('@/pages/Book'));
+const GymSettings = lazy(() => import('@/pages/admin/GymSettings'));
+const Desk = lazy(() => import('@/pages/admin/Desk'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 
 export default function App() {
@@ -118,8 +122,12 @@ export default function App() {
             <Route path="/settings" element={<Settings />} />
             <Route path="/more" element={<More />} />
 
+            <Route path="/gym" element={<MyGym />} />
+            <Route path="/book" element={<Book />} />
             <Route path="/trainer" element={<RequireRole role="trainer"><TrainerDashboard /></RequireRole>} />
             <Route path="/trainer/:clientId" element={<RequireRole role="trainer"><ClientDetail /></RequireRole>} />
+            <Route path="/admin/desk" element={<RequireRole role="staff"><Desk /></RequireRole>} />
+            <Route path="/admin/gym" element={<RequireRole role="manager"><GymSettings /></RequireRole>} />
             <Route path="/admin/attendance" element={<RequireRole role="staff"><Attendance /></RequireRole>} />
             <Route path="/admin/members" element={<RequireRole role="staff"><Members /></RequireRole>} />
             <Route path="/admin/equipment" element={<RequireRole role="manager"><Equipment /></RequireRole>} />

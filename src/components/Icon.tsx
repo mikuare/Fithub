@@ -1,12 +1,12 @@
 import {
   Activity, AlertTriangle, Apple, ArrowDown, ArrowUp, Award, BatteryCharging, BedDouble,
-  Beef, Bike, BookOpen, Brain, Calendar, CalendarCheck, CalendarHeart, CalendarRange,
-  ChartNoAxesCombined, CheckCheck, ChevronsDown, ChevronsUp, Circle, CircleCheckBig,
+  Banknote, Beef, Bike, BookOpen, Brain, Calendar, CalendarCheck, CalendarHeart,
+  CalendarPlus, CalendarRange, ChartNoAxesCombined, CheckCheck, ChevronsDown, ChevronsUp, Circle, CircleCheckBig,
   ClipboardCheck, ClipboardList, CreditCard, Droplets, Dumbbell, FileBarChart, Flag, Flame,
   Footprints, HeartPulse, IdCard, Info, Layers, LayoutDashboard, Leaf, Medal, Moon,
   MoreHorizontal, Move, PersonStanding, Repeat, Route, ScanLine, ScrollText, Settings,
-  Sparkles, Star, Sunrise, Target, Timer, TrendingUp, Trophy, User, UserRoundCog, Users,
-  Wrench, type LucideProps,
+  Sparkles, Star, Store, Sunrise, Target, Timer, TrendingUp, Trophy, User, UserRoundCog,
+  Users, Wrench, type LucideProps,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 
@@ -20,13 +20,13 @@ import type { ComponentType } from 'react';
  */
 const REGISTRY: Record<string, ComponentType<LucideProps>> = {
   Activity, AlertTriangle, Apple, ArrowDown, ArrowUp, Award, BatteryCharging, BedDouble,
-  Beef, Bike, BookOpen, Brain, Calendar, CalendarCheck, CalendarHeart, CalendarRange,
-  ChartNoAxesCombined, CheckCheck, ChevronsDown, ChevronsUp, Circle, CircleCheckBig,
+  Banknote, Beef, Bike, BookOpen, Brain, Calendar, CalendarCheck, CalendarHeart,
+  CalendarPlus, CalendarRange, ChartNoAxesCombined, CheckCheck, ChevronsDown, ChevronsUp, Circle, CircleCheckBig,
   ClipboardCheck, ClipboardList, CreditCard, Droplets, Dumbbell, FileBarChart, Flag, Flame,
   Footprints, HeartPulse, IdCard, Info, Layers, LayoutDashboard, Leaf, Medal, Moon,
   MoreHorizontal, Move, PersonStanding, Repeat, Route, ScanLine, ScrollText, Settings,
-  Sparkles, Star, Sunrise, Target, Timer, TrendingUp, Trophy, User, UserRoundCog, Users,
-  Wrench,
+  Sparkles, Star, Store, Sunrise, Target, Timer, TrendingUp, Trophy, User, UserRoundCog,
+  Users, Wrench,
 };
 
 /** Name-addressed icon so config and data files can reference icons as strings. */

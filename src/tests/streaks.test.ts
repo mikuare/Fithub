@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computeStreak, consistentWeeks } from '@/lib/fitness/streaks';
-import { addDays, today, weekdayOf } from '@/lib/date';
+import { addDays, startOfWeek, today, weekdayOf } from '@/lib/date';
 import type { Program, WorkoutSession, Weekday } from '@/types';
 
 const session = (date: string): WorkoutSession => ({
@@ -47,22 +47,30 @@ describe('computeStreak', () => {
   });
 });
 
+/**
+ * `count` completed sessions inside the calendar week `weeksAgo` weeks back,
+ * anchored to the real week boundary. Placing them by day offset instead
+ * (7, 8, 9 days ago) only lands them in a single calendar week when today is
+ * Wednesday through Saturday, which made this suite pass or fail depending on
+ * the day it ran rather than on the code.
+ */
+const weekOf = (weeksAgo: number, count = 3): WorkoutSession[] => {
+  const start = startOfWeek(addDays(today(), -weeksAgo * 7), 1);
+  return Array.from({ length: count }, (_, i) => {
+    const day = addDays(start, i);
+    return { ...session(day > today() ? today() : day), id: `s-${weeksAgo}-${i}` };
+  });
+};
+
 describe('consistentWeeks', () => {
   it('counts recent weeks that met the target', () => {
-    const sessions: WorkoutSession[] = [];
-    // Three sessions in each of the last three weeks.
-    for (let w = 0; w < 3; w++) {
-      for (let i = 0; i < 3; i++) sessions.push(session(addDays(today(), -(w * 7 + i))));
-    }
+    const sessions = [0, 1, 2].flatMap((w) => weekOf(w));
     expect(consistentWeeks(sessions, 3)).toBeGreaterThanOrEqual(3);
   });
 
   it('does not penalise the current, still-open week', () => {
     // Two full past weeks, nothing yet this week.
-    const sessions: WorkoutSession[] = [];
-    for (let w = 1; w <= 2; w++) {
-      for (let i = 0; i < 3; i++) sessions.push(session(addDays(today(), -(w * 7 + i))));
-    }
+    const sessions = [1, 2].flatMap((w) => weekOf(w));
     expect(consistentWeeks(sessions, 3)).toBeGreaterThanOrEqual(2);
   });
 });

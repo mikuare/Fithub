@@ -1,6 +1,9 @@
 const MAX_UPLOAD_BYTES = 25_000_000;
 const MAX_STORED_CHARACTERS = 700_000;
 const AVATAR_SIZE = 384;
+/** Gym photos are shown wide, so they crop to 16:9 rather than to a square. */
+const GYM_PHOTO_WIDTH = 960;
+const GYM_PHOTO_HEIGHT = 540;
 const IMAGE_FILE_EXTENSION = /\.(?:avif|bmp|gif|heic|heif|jfif|jpe|jpeg|jpg|png|webp)$/i;
 
 type ProfileImageCandidate = Pick<File, 'size' | 'type'> & { name?: string };
@@ -56,6 +59,49 @@ export async function prepareProfileImage(file: File): Promise<string> {
     ctx.drawImage(image, sx, sy, side, side, 0, 0, AVATAR_SIZE, AVATAR_SIZE);
 
     const dataUrl = canvas.toDataURL('image/jpeg', 0.84);
+    if (!dataUrl.startsWith('data:image/jpeg')) throw new Error('This browser could not compress the photo.');
+    if (dataUrl.length > MAX_STORED_CHARACTERS) throw new Error('The prepared photo is still too large. Try a smaller image.');
+    return dataUrl;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/**
+ * Prepares a wide gym photo. Same validation and size ceiling as an avatar,
+ * but cropped to 16:9 — a gym floor squashed into a square reads as a mistake.
+ */
+export async function prepareGymPhoto(file: File): Promise<string> {
+  const problem = profileImageProblem(file);
+  if (problem) throw new Error(problem);
+
+  const url = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.decoding = 'async';
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error('This image could not be opened. Try a JPG, JPEG, PNG, WebP or another image supported by your phone.'));
+      image.src = url;
+    });
+
+    if (!image.naturalWidth || !image.naturalHeight) throw new Error('That image has no usable dimensions.');
+
+    const canvas = document.createElement('canvas');
+    canvas.width = GYM_PHOTO_WIDTH;
+    canvas.height = GYM_PHOTO_HEIGHT;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('This browser could not prepare the photo.');
+
+    // Cover: fill the frame and crop the overflow, centred.
+    const scale = Math.max(GYM_PHOTO_WIDTH / image.naturalWidth, GYM_PHOTO_HEIGHT / image.naturalHeight);
+    const drawWidth = image.naturalWidth * scale;
+    const drawHeight = image.naturalHeight * scale;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, GYM_PHOTO_WIDTH, GYM_PHOTO_HEIGHT);
+    ctx.drawImage(image, (GYM_PHOTO_WIDTH - drawWidth) / 2, (GYM_PHOTO_HEIGHT - drawHeight) / 2, drawWidth, drawHeight);
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
     if (!dataUrl.startsWith('data:image/jpeg')) throw new Error('This browser could not compress the photo.');
     if (dataUrl.length > MAX_STORED_CHARACTERS) throw new Error('The prepared photo is still too large. Try a smaller image.');
     return dataUrl;

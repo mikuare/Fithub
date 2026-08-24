@@ -1,5 +1,5 @@
 import type {
-  Gym, MembershipPlan, GymEquipment, MaintenanceLog, Profile, Membership,
+  Gym, GymClass, MembershipPlan, GymEquipment, MaintenanceLog, Profile, Membership,
   GymCheckin, Challenge, ID, EquipmentStatus,
 } from '@/types';
 import { backend } from './index';
@@ -77,18 +77,28 @@ export async function seedIfEmpty(): Promise<void> {
   const gym: Gym = {
     id: DEMO_GYM_ID,
     name: 'FitHub Central',
+    join_code: 'FITH-CTR',
+    description: 'A full-service gym on two floors, with a class studio, free weights and a quiet training room.',
     address: '18 Riverside Way, Level 2',
+    phone: '+1 555 0142',
+    email: 'hello@fithubcentral.example',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
     open_hour: 6,
     close_hour: 23,
     capacity: 220,
+    currency: 'USD',
+    logo_data_url: null,
+    photos: [],
+    created_by: null,
+    active: true,
+    created_at: new Date(Date.now() - 400 * 86_400_000).toISOString(),
   };
 
   const plans: MembershipPlan[] = [
-    { id: 'plan_flex', gym_id: gym.id, name: 'Flex Monthly', price: 45, currency: 'USD', months: 1, perks: ['Full gym access', 'Cancel anytime'] },
-    { id: 'plan_standard', gym_id: gym.id, name: 'Standard', price: 39, currency: 'USD', months: 6, perks: ['Full gym access', 'Two guest passes', 'Class booking'] },
-    { id: 'plan_annual', gym_id: gym.id, name: 'Annual', price: 32, currency: 'USD', months: 12, perks: ['Full gym access', 'Unlimited classes', 'Quarterly assessment'] },
-    { id: 'plan_pt', gym_id: gym.id, name: 'Coached', price: 129, currency: 'USD', months: 1, perks: ['Everything in Annual', 'Weekly coaching session', 'Programme review'] },
+    { id: 'plan_flex', gym_id: gym.id, name: 'Flex Monthly', price: 45, currency: 'USD', months: 1, perks: ['Full gym access', 'Cancel anytime'], includes_classes: false },
+    { id: 'plan_standard', gym_id: gym.id, name: 'Standard', price: 39, currency: 'USD', months: 6, perks: ['Full gym access', 'Two guest passes', 'Class booking'], includes_classes: true },
+    { id: 'plan_annual', gym_id: gym.id, name: 'Annual', price: 32, currency: 'USD', months: 12, perks: ['Full gym access', 'Unlimited classes', 'Quarterly assessment'], includes_classes: true },
+    { id: 'plan_pt', gym_id: gym.id, name: 'Coached', price: 129, currency: 'USD', months: 1, perks: ['Everything in Annual', 'Weekly coaching session', 'Programme review'], includes_classes: true },
   ];
 
   const equipment: GymEquipment[] = EQUIPMENT_SEED.map(([name, category, location], i) => {
@@ -163,6 +173,7 @@ export async function seedIfEmpty(): Promise<void> {
         end_date: end,
         member_code: memberCode(),
         auto_renew: rand() > 0.35,
+        payment: rand() > 0.18 ? 'paid' : 'unpaid',
       });
     }
 
@@ -193,10 +204,34 @@ export async function seedIfEmpty(): Promise<void> {
     }
   }
 
+  // A week's timetable, so the booking screens have something real in them.
+  const classes: GymClass[] = ([
+    ['Morning HIIT', 1, '06:00', 45, 20, 12, 'Short, hard intervals to start the week.'],
+    ['Spin', 1, '18:00', 45, 20, 14, 'Indoor cycling to music. Bring a towel.'],
+    ['Open Mat', 2, '07:00', 60, 15, 0, 'Unstructured mat time with a coach on the floor.'],
+    ['Strength Basics', 3, '18:30', 60, 12, 15, 'Squat, hinge, press and pull, coached from scratch.'],
+    ['Yoga & Mobility', 4, '07:30', 50, 18, 10, 'Slow, held positions. Beginners welcome.'],
+    ['Conditioning', 5, '17:30', 45, 20, 12, 'Mixed cardio and bodyweight circuits.'],
+    ['Weekend Long Session', 6, '09:00', 75, 24, 12, 'A longer, easier group session.'],
+  ] as const).map(([name, weekday, start, minutes, capacity, price, description], i) => ({
+    id: `cls_${i + 1}`,
+    gym_id: gym.id,
+    name,
+    description,
+    weekday: weekday as GymClass['weekday'],
+    start_time: start,
+    duration_minutes: minutes,
+    capacity,
+    trainer_id: null,
+    price,
+    active: true,
+  }));
+
   const challenges: Challenge[] = seedChallenges(gym.id);
 
   await db.upsert('gyms', gym);
   await db.upsertMany('membership_plans', plans);
+  await db.upsertMany('gym_classes', classes);
   await db.upsertMany('gym_equipment', equipment);
   await db.upsertMany('maintenance_logs', maintenance);
   await db.upsertMany('profiles', members);

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type {
-  Assessment, BodyMeasurement, Challenge, ChallengeMember, FeedPost, FitnessProfile,
+  Assessment, BodyMeasurement, Challenge, ChallengeMember, ClassBooking, FeedPost, FitnessProfile,
+  GymClass, GymPayment, GymPaymentKind,
   Friendship, Goal, Gym, GymCheckin, GymEquipment, HabitDefinition, HabitLog, ID,
   MaintenanceLog, Membership, MembershipPlan, Message, Niggle, AppNotification, NutritionLog,
   NutritionTargets, PersonalRecord, ProgressPhoto, Profile, Program, RecoveryLog,
@@ -12,7 +13,13 @@ import type {
 import { backend, type Collection, type Row } from '@/lib/db';
 import { DEMO_GYM_ID } from '@/lib/db/seed';
 import { defaultNutritionTargets, defaultPreferences } from '@/lib/defaults';
-import { uid } from '@/lib/id';
+import { uid, memberCode } from '@/lib/id';
+import { useAuth } from '@/store/auth';
+import { findGymByCode, newGym } from '@/lib/gym/tenant';
+import {
+  activeMembershipOn, countBookings, occurrenceKey,
+  priceFor as classPriceFor, type BookingCounts,
+} from '@/lib/gym/booking';
 import { addDays, nowISO, startOfWeek, today, toISODate, weekdayOf } from '@/lib/date';
 import { getExercise } from '@/data/exercises';
 import { candidatesFrom, beatsExisting, toRecord } from '@/lib/fitness/records';
@@ -63,8 +70,15 @@ export interface DataState {
 
   /* shared / gym scope */
   challenges: Challenge[];
+  /** Every gym on record, so a join code can be resolved before joining one. */
+  gyms: Gym[];
   gym: Gym | null;
   plans: MembershipPlan[];
+  gymClasses: GymClass[];
+  bookings: ClassBooking[];
+  gymPayments: GymPayment[];
+  /** Spots taken per class occurrence, aggregated so members can see capacity. */
+  bookingCounts: BookingCounts;
   equipment: GymEquipment[];
   maintenance: MaintenanceLog[];
   /** Loaded only for trainer/staff/manager/admin roles. */
@@ -72,6 +86,8 @@ export interface DataState {
   allMemberships: Membership[];
   allCheckins: GymCheckin[];
   auditLogs: AuditLog[];
+  allBookings: ClassBooking[];
+  allGymPayments: GymPayment[];
 
   load: (userId: ID, role: Profile['role']) => Promise<void>;
   reset: () => void;
@@ -96,6 +112,15 @@ export interface DataState {
   logHabit: (habitId: ID, date: ISODate, value: number) => Promise<void>;
   addNutrition: (input: Omit<NutritionLog, 'id' | 'user_id' | 'created_at'>) => Promise<void>;
   joinChallenge: (challengeId: ID, onLeaderboard: boolean) => Promise<void>;
+
+  /* tenancy & booking */
+  createGym: (input: { name: string; address?: string; currency?: string }) => Promise<Gym>;
+  updateGym: (patch: Partial<Gym>) => Promise<void>;
+  joinGymByCode: (code: string) => Promise<Gym>;
+  bookClass: (classId: ID, date: ISODate) => Promise<ClassBooking>;
+  cancelBooking: (bookingId: ID) => Promise<void>;
+  settleInCash: (input: { kind: GymPaymentKind; refId: ID; memberId: ID; amount: number; note?: string }) => Promise<void>;
+  takeMembership: (planId: ID) => Promise<Membership>;
   leaveChallenge: (challengeId: ID) => Promise<void>;
   /** Sandbox checkout: records the plan and a payment entry, moves no money. */
   checkout: (input: { tier: Exclude<SubscriptionTier, 'free'>; cycle: BillingCycle; currency: BillingCurrency; method: PaymentMethodInfo }) => Promise<Subscription>;
@@ -111,6 +136,8 @@ const EMPTY: Omit<DataState,
   'notify' | 'markNotificationsRead' | 'startSession' | 'logSet' | 'removeSet' |
   'finishSession' | 'abandonSession' | 'saveRecovery' | 'saveMeasurement' | 'logHabit' |
   'addNutrition' | 'joinChallenge' | 'leaveChallenge' | 'checkout' | 'setCancelAtPeriodEnd' |
+  'createGym' | 'updateGym' | 'joinGymByCode' | 'bookClass' | 'cancelBooking' | 'settleInCash' |
+  'takeMembership' |
   'recalcGoals' | 'syncAchievements' | 'updateChallengeProgress' | 'activeProgram'
 > = {
   fitnessProfile: null, preferences: null, assessments: [], goals: [], programs: [],
@@ -119,8 +146,10 @@ const EMPTY: Omit<DataState,
   subscription: null, payments: [], achievements: [],
   challengeMembers: [], friendships: [], feed: [], notifications: [], messages: [],
   memberships: [], checkins: [], trainerClients: [], trainerNotes: [],
+  gyms: [], gymClasses: [], bookings: [], gymPayments: [], bookingCounts: {},
   challenges: [], gym: null, plans: [], equipment: [], maintenance: [],
   directory: [], allMemberships: [], allCheckins: [], auditLogs: [],
+  allBookings: [], allGymPayments: [],
 };
 
 export const useData = create<DataState>((set, get) => ({
@@ -152,6 +181,7 @@ export const useData = create<DataState>((set, get) => ({
         challengeMembers, friendships, feed, notifications, messages,
         memberships, checkins, trainerClients, trainerNotes,
         challenges, gyms, plans, equipment, maintenance,
+        me, gymClasses, bookings, gymPayments, bookingRows,
       ] = await Promise.all([
         read('fitness profile', db.get('fitness_profiles', userId), null),
         read('preferences', db.get('user_preferences', userId), null),
@@ -186,6 +216,11 @@ export const useData = create<DataState>((set, get) => ({
         read('membership plans', db.listAll('membership_plans'), []),
         read('gym equipment', db.listAll('gym_equipment'), []),
         read('maintenance', db.listAll('maintenance_logs'), []),
+        read('profile', db.get('profiles', userId), null),
+        read('timetable', db.listAll('gym_classes'), []),
+        read('bookings', db.list('class_bookings', userId), []),
+        read('payments', db.list('gym_payments', userId), []),
+        read('class capacity', db.listAll('class_bookings'), []),
       ]);
 
       const prefs = preferences ?? defaultPreferences(userId, fitnessProfile?.units ?? 'metric');
@@ -200,7 +235,13 @@ export const useData = create<DataState>((set, get) => ({
         challengeMembers, friendships, feed, notifications, messages,
         memberships, checkins, trainerClients, trainerNotes,
         challenges, plans, equipment, maintenance,
-        gym: gyms.find((g) => g.id === DEMO_GYM_ID) ?? gyms[0] ?? null,
+        gyms, gymClasses, bookings, gymPayments,
+        bookingCounts: countBookings(bookingRows),
+        // The gym the user actually belongs to. The demo gym is only a
+        // fallback for seeded accounts that predate multi-tenancy.
+        gym: gyms.find((g) => g.id === me?.gym_id)
+          ?? gyms.find((g) => g.id === DEMO_GYM_ID)
+          ?? gyms[0] ?? null,
         loading: false, loaded: true,
         error: loadIssues.length
           ? `Some account data could not be refreshed: ${loadIssues.join(', ')}.`
@@ -210,14 +251,16 @@ export const useData = create<DataState>((set, get) => ({
       // Staff-facing roles need gym-wide reads. In the Supabase backend these
       // are gated by row-level security policies, not by this check alone.
       if (role !== 'member') {
-        const [directory, allMemberships, allCheckins, auditLogs] = await Promise.all([
+        const [directory, allMemberships, allCheckins, auditLogs, allBookings, allGymPayments] = await Promise.all([
           read('member directory', db.listAll('profiles'), []),
           read('all memberships', db.listAll('memberships'), []),
           read('all check-ins', db.listAll('gym_checkins'), []),
           read('audit logs', db.listAll('audit_logs'), []),
+          read('all bookings', db.listAll('class_bookings'), []),
+          read('all payments', db.listAll('gym_payments'), []),
         ]);
         set({
-          directory, allMemberships, allCheckins, auditLogs,
+          directory, allMemberships, allCheckins, auditLogs, allBookings, allGymPayments,
           error: loadIssues.length
             ? `Some account data could not be refreshed: ${loadIssues.join(', ')}.`
             : null,
@@ -464,6 +507,185 @@ export const useData = create<DataState>((set, get) => ({
     set((s) => ({ nutrition: [...s.nutrition, row] }));
   },
 
+  /* ---------------- tenancy & booking ----------------
+     A gym is created by the account that will run it, so creating one also
+     promotes that account to manager and files it under the new gym. Cash is
+     never assumed: a booking is made unpaid and settled at the desk later. */
+
+  createGym: async (input) => {
+    const { userId, gyms } = get();
+    if (!userId) throw new Error('Sign in before creating a gym.');
+    const gym = newGym({
+      name: input.name,
+      address: input.address,
+      currency: input.currency,
+      createdBy: userId,
+      existingCodes: gyms.map((g) => g.join_code),
+    });
+    await backend().upsert('gyms', gym);
+    set((s) => ({ gyms: [...s.gyms, gym], gym }));
+
+    // Who becomes a manager is the server's call. On Supabase a trigger does
+    // the promotion on insert and the client re-reads the result; the local
+    // backend has no triggers, so the store performs it directly.
+    if (backend().kind === 'local') {
+      await useAuth.getState().updateProfile({ gym_id: gym.id, role: 'manager' });
+    } else {
+      await useAuth.getState().refreshProfile();
+    }
+    await get().audit('gym.create', 'gyms', gym.id, { name: gym.name });
+    return gym;
+  },
+
+  updateGym: async (patch) => {
+    const { gym } = get();
+    if (!gym) throw new Error('No gym to update.');
+    const next: Gym = { ...gym, ...patch, id: gym.id };
+    await backend().upsert('gyms', next);
+    set((s) => ({ gym: next, gyms: s.gyms.map((g) => (g.id === next.id ? next : g)) }));
+    await get().audit('gym.update', 'gyms', next.id, { fields: Object.keys(patch) });
+  },
+
+  joinGymByCode: async (code) => {
+    const { gyms } = get();
+    const gym = findGymByCode(gyms, code);
+    if (!gym) throw new Error('No gym matches that code. Check it with your gym and try again.');
+    if (!gym.active) throw new Error(`${gym.name} is not accepting members right now.`);
+    set({ gym });
+    await useAuth.getState().updateProfile({ gym_id: gym.id });
+    await get().audit('gym.join', 'gyms', gym.id, { code: gym.join_code });
+    return gym;
+  },
+
+  bookClass: async (classId, date) => {
+    const { userId, gym, gymClasses, bookings, memberships, plans } = get();
+    if (!userId || !gym) throw new Error('Join a gym before booking a class.');
+    const gymClass = gymClasses.find((c) => c.id === classId);
+    if (!gymClass) throw new Error('That class is no longer on the timetable.');
+
+    const existing = bookings.find((b) =>
+      b.class_id === classId && b.date === date && b.user_id === userId && b.status !== 'cancelled');
+    if (existing) return existing;
+
+    const membership = activeMembershipOn(memberships, gym.id, date);
+    const price = classPriceFor(gymClass, membership, plans);
+    const row: ClassBooking = {
+      id: uid('bk'),
+      gym_id: gym.id,
+      class_id: classId,
+      user_id: userId,
+      date,
+      status: 'booked',
+      payment: price.payment,
+      amount: price.amount,
+      currency: gym.currency,
+      created_at: nowISO(),
+      cancelled_at: null,
+    };
+    await backend().upsert('class_bookings', row);
+    const key = occurrenceKey(classId, date);
+    set((s) => ({
+      bookings: [...s.bookings, row],
+      allBookings: [...s.allBookings, row],
+      bookingCounts: { ...s.bookingCounts, [key]: (s.bookingCounts[key] ?? 0) + 1 },
+    }));
+    return row;
+  },
+
+  cancelBooking: async (bookingId) => {
+    const { bookings } = get();
+    const row = bookings.find((b) => b.id === bookingId);
+    if (!row || row.status === 'cancelled') return;
+    // Kept rather than deleted: the gym needs the history, and a cancelled
+    // booking releases its spot through holdsSpot() either way.
+    const next: ClassBooking = { ...row, status: 'cancelled', cancelled_at: nowISO() };
+    await backend().upsert('class_bookings', next);
+    const key = occurrenceKey(next.class_id, next.date);
+    set((s) => ({
+      bookings: s.bookings.map((b) => (b.id === next.id ? next : b)),
+      allBookings: s.allBookings.map((b) => (b.id === next.id ? next : b)),
+      bookingCounts: { ...s.bookingCounts, [key]: Math.max(0, (s.bookingCounts[key] ?? 1) - 1) },
+    }));
+  },
+
+  settleInCash: async (input) => {
+    const { userId, gym } = get();
+    if (!userId || !gym) throw new Error('No gym on this account.');
+    const payment: GymPayment = {
+      id: uid('gp'),
+      gym_id: gym.id,
+      user_id: input.memberId,
+      kind: input.kind,
+      ref_id: input.refId,
+      amount: input.amount,
+      currency: gym.currency,
+      method: 'cash',
+      recorded_by: userId,
+      paid_at: nowISO(),
+      note: input.note ?? '',
+    };
+    await backend().upsert('gym_payments', payment);
+
+    // Mark whatever it settles as paid, so the two can never disagree.
+    if (input.kind === 'class') {
+      const booking = [...get().allBookings, ...get().bookings].find((b) => b.id === input.refId);
+      if (booking) {
+        const next: ClassBooking = { ...booking, payment: 'paid' };
+        await backend().upsert('class_bookings', next);
+        set((s) => ({
+          bookings: s.bookings.map((b) => (b.id === next.id ? next : b)),
+          allBookings: s.allBookings.map((b) => (b.id === next.id ? next : b)),
+        }));
+      }
+    } else {
+      const membership = [...get().allMemberships, ...get().memberships].find((m) => m.id === input.refId);
+      if (membership) {
+        const next: Membership = { ...membership, payment: 'paid' };
+        await backend().upsert('memberships', next);
+        set((s) => ({
+          memberships: s.memberships.map((m) => (m.id === next.id ? next : m)),
+          allMemberships: s.allMemberships.map((m) => (m.id === next.id ? next : m)),
+        }));
+      }
+    }
+
+    set((s) => ({
+      gymPayments: [...s.gymPayments, payment],
+      allGymPayments: [...s.allGymPayments, payment],
+    }));
+    await get().audit('gym.cash_payment', input.kind, input.refId, { amount: input.amount });
+  },
+
+  takeMembership: async (planId) => {
+    const { userId, gym, plans, memberships } = get();
+    if (!userId || !gym) throw new Error('Join a gym before taking a membership.');
+    const plan = plans.find((p) => p.id === planId && p.gym_id === gym.id);
+    if (!plan) throw new Error('That plan is no longer offered.');
+
+    const live = activeMembershipOn(memberships, gym.id, today());
+    if (live) throw new Error('You already have an active membership at this gym.');
+
+    // Starts today and is left unpaid: the member settles at the desk, which is
+    // the whole point of a cash gym. Staff see it in "memberships owing".
+    const start = today();
+    const row: Membership = {
+      id: uid('mem'),
+      user_id: userId,
+      gym_id: gym.id,
+      plan_id: plan.id,
+      status: 'active',
+      start_date: start,
+      end_date: addDays(start, plan.months * 30),
+      member_code: memberCode(),
+      auto_renew: false,
+      payment: 'unpaid',
+    };
+    await backend().upsert('memberships', row);
+    set((s) => ({ memberships: [...s.memberships, row], allMemberships: [...s.allMemberships, row] }));
+    await get().audit('gym.membership_taken', 'memberships', row.id, { plan: plan.name });
+    return row;
+  },
+
   joinChallenge: async (challengeId, onLeaderboard) => {
     const { userId, challengeMembers } = get();
     if (!userId || challengeMembers.some((c) => c.challenge_id === challengeId)) return;
@@ -702,6 +924,7 @@ const COLLECTION_TO_KEY: Partial<Record<Collection, keyof DataState>> = {
   messages: 'messages', memberships: 'memberships', gym_checkins: 'checkins',
   trainer_clients: 'trainerClients', trainer_notes: 'trainerNotes',
   challenges: 'challenges', membership_plans: 'plans', gym_equipment: 'equipment',
+  gyms: 'gyms', gym_classes: 'gymClasses', class_bookings: 'bookings', gym_payments: 'gymPayments',
   maintenance_logs: 'maintenance', audit_logs: 'auditLogs',
 };
 

@@ -17,6 +17,7 @@ interface AuthState {
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (patch: Partial<Profile>) => Promise<void>;
+  refreshProfile: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -81,6 +82,17 @@ export const useAuth = create<AuthState>((set, get) => ({
     const next = { ...current, ...patch };
     await backend().upsert('profiles', next);
     set({ profile: next });
+  },
+
+  /**
+   * Re-reads the profile from the backend. Needed wherever the server changes
+   * it behind the client's back — creating a gym promotes the account to
+   * manager in a trigger, because a client that can write its own role could
+   * write any role.
+   */
+  refreshProfile: async () => {
+    const fresh = await backend().currentProfile();
+    if (fresh) set({ profile: fresh });
   },
 
   clearError: () => set({ error: null }),

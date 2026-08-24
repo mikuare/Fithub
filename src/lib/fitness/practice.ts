@@ -80,6 +80,12 @@ const ALIASES: Record<Equipment, string[]> = {
   elliptical: ['cross trainer', 'crosstrainer', 'elliptical machine'],
   mat: ['yoga mat', 'exercise mat', 'gym mat', 'floor mat', 'pilates mat'],
   hand_gripper: ['grip trainer', 'hand grip', 'grip strengthener', 'captains of crush', 'gripper', 'hand exerciser'],
+  band_set: [
+    '11pcs resistance bands set', '11pc resistance band set', '11 piece resistance band set',
+    'resistance bands set', 'resistance band set', 'tube band set', 'workout fitness exercise tube',
+    'exercise tube set', 'door anchor set', 'band set with handles', 'stackable bands',
+    'clip band set', 'fitness tube set',
+  ],
 };
 
 /** True when `needle` appears in `haystack` as a whole word sequence. */

@@ -3,8 +3,9 @@ import {
   CAMERA_BLOCKER_COPY, describeCameraFailure, diagnoseCamera, requestCameraStream,
 } from '@/lib/fitness/scanEngine';
 import {
-  foodBenefits, foodProfile, goalEatingStrategy, goalFit, rankFoodsForGoal,
-  remainingMacros, suggestFoods,
+  foodBenefits, foodProfile, foodStance, goalEatingStrategy, goalFit, goalPlate,
+  rankFoodsForGoal, remainingMacros, suggestFoods, energyDensity, servingGrams,
+  GOAL_LIMIT_POLICY,
 } from '@/lib/fitness/foodiq';
 import { barcodeValid, mapOffProduct, normalizeBarcode, offProductUrl } from '@/lib/fitness/barcode';
 import { FOODS } from '@/data/foods';
@@ -287,5 +288,122 @@ describe('mapOffProduct', () => {
     expect(mapOffProduct({ status: 0 })).toBeNull();
     expect(mapOffProduct({ status: 1, product: { nutriments: {} } })).toBeNull();
     expect(mapOffProduct(null)).toBeNull();
+  });
+});
+
+describe('servingGrams & energyDensity', () => {
+  it('reads a weight out of a serving string', () => {
+    expect(servingGrams('100 g')).toBe(100);
+    expect(servingGrams('30 g scoop')).toBe(30);
+    expect(servingGrams('250 ml')).toBe(250);
+  });
+
+  it('returns null when the serving has no weight to read', () => {
+    expect(servingGrams('1 medium')).toBeNull();
+    expect(servingGrams('1/2 medium')).toBeNull();
+    expect(servingGrams('2 tbsp')).toBeNull();
+  });
+
+  it('computes kcal per 100 g, or null without a weight', () => {
+    expect(energyDensity(FOODS.find((f) => f.name === 'Almonds')!)).toBeGreaterThan(500);
+    expect(energyDensity(broccoli)).toBeLessThan(60);
+    expect(energyDensity(FOODS.find((f) => f.name === 'Whole egg')!)).toBeNull();
+  });
+});
+
+describe('foodStance', () => {
+  const oil = FOODS.find((f) => f.name === 'Olive oil')!;
+  const almonds = FOODS.find((f) => f.name === 'Almonds')!;
+  const spinach = FOODS.find((f) => f.name.startsWith('Spinach'))!;
+  const salmon = FOODS.find((f) => f.name.startsWith('Salmon'))!;
+
+  it('never restricts anything for a goal that does not call for it', () => {
+    for (const goal of ['general_fitness', 'maintain', 'mobility'] as const) {
+      for (const f of FOODS) expect(foodStance(f, goal).stance).toBe('eat');
+    }
+  });
+
+  it('flags energy-dense, protein-thin foods when cutting', () => {
+    expect(foodStance(almonds, 'lose_fat').stance).toBe('limit');
+    expect(foodStance(oil, 'lose_fat').stance).toBe('limit');
+    expect(foodStance(chocolate, 'lose_fat').stance).toBe('limit');
+  });
+
+  it('leaves protein and vegetables alone when cutting', () => {
+    expect(foodStance(chicken, 'lose_fat').stance).toBe('eat');
+    expect(foodStance(broccoli, 'lose_fat').stance).toBe('eat');
+    expect(foodStance(salmon, 'lose_fat').stance).toBe('eat');
+  });
+
+  it('asks for portioning, not avoidance, on staple carbs when cutting', () => {
+    expect(foodStance(rice, 'lose_fat').stance).toBe('portion');
+    expect(foodStance(rice, 'lose_fat').portion).toBeTruthy();
+  });
+
+  it('inverts the concern for muscle gain — volume, not density', () => {
+    // Spinach is a fat-loss staple and a bulker's appetite killer. Same food, opposite call.
+    expect(foodStance(spinach, 'lose_fat').stance).toBe('eat');
+    expect(foodStance(spinach, 'build_muscle').stance).not.toBe('eat');
+    expect(foodStance(chicken, 'build_muscle').stance).toBe('eat');
+    expect(foodStance(rice, 'build_muscle').stance).toBe('eat');
+  });
+
+  it('treats endurance as a timing question — protein is never restricted', () => {
+    for (const f of FOODS.filter((x) => x.protein_g >= 15)) {
+      expect(foodStance(f, 'improve_endurance').stance).not.toBe('limit');
+    }
+    expect(foodStance(oil, 'improve_endurance').stance).toBe('limit');
+    expect(foodStance(banana, 'improve_endurance').stance).toBe('eat');
+  });
+
+  it('carries a reason always, and portion advice whenever it is not "eat"', () => {
+    for (const goal of ['lose_fat', 'build_muscle', 'improve_endurance'] as const) {
+      for (const f of FOODS) {
+        const v = foodStance(f, goal);
+        expect(v.reason.length).toBeGreaterThan(10);
+        if (v.stance !== 'eat') expect(v.portion).toBeTruthy();
+      }
+    }
+  });
+
+  it('waves through effectively calorie-free foods on any goal', () => {
+    expect(foodStance(coffee, 'lose_fat').stance).toBe('eat');
+  });
+});
+
+describe('goalPlate', () => {
+  it('gives a goal that needs limits both sides of the picture', () => {
+    const p = goalPlate(FOODS, 'lose_fat');
+    expect(p.policy.applies).toBe(true);
+    expect(p.eat.length).toBeGreaterThan(0);
+    expect(p.easy.length).toBeGreaterThan(0);
+    expect(p.easy.map((e) => e.food.name)).toContain('Almonds');
+  });
+
+  it('gives a goal that does not need limits an empty list and an explanation', () => {
+    for (const goal of ['general_fitness', 'maintain', 'mobility'] as const) {
+      const p = goalPlate(FOODS, goal);
+      expect(p.policy.applies).toBe(false);
+      expect(p.easy).toHaveLength(0);
+      expect(p.policy.noLimitNote).toBeTruthy();
+      expect(p.eat.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('keeps whole plant food out of the muscle-gain list so it does not read as "avoid vegetables"', () => {
+    for (const goal of ['build_muscle', 'gain_strength'] as const) {
+      for (const e of goalPlate(FOODS, goal).easy) {
+        expect(e.food.tags).not.toContain('vegetable');
+        expect(e.food.tags).not.toContain('fruit');
+      }
+    }
+  });
+
+  it('never puts the same food on both sides', () => {
+    for (const goal of Object.keys(GOAL_LIMIT_POLICY) as Array<keyof typeof GOAL_LIMIT_POLICY>) {
+      const p = goalPlate(FOODS, goal);
+      const eat = new Set(p.eat.map((e) => e.food.name));
+      for (const e of p.easy) expect(eat.has(e.food.name)).toBe(false);
+    }
   });
 });

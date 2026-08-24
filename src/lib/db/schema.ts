@@ -5,6 +5,7 @@ import type {
   ChallengeMember, Friendship, FeedPost, Gym, MembershipPlan, Membership,
   GymCheckin, GymEquipment, MaintenanceLog, TrainerClient, TrainerNote, Message,
   AppNotification, UserPreferences, AuditLog, Subscription, PaymentRecord,
+  GymClass, ClassBooking, GymPayment,
 } from '@/types';
 
 /** Local credential record — only used by the offline auth adapter. */
@@ -44,6 +45,9 @@ export interface Schema {
   membership_plans: MembershipPlan;
   memberships: Membership;
   gym_checkins: GymCheckin;
+  gym_classes: GymClass;
+  class_bookings: ClassBooking;
+  gym_payments: GymPayment;
   gym_equipment: GymEquipment;
   maintenance_logs: MaintenanceLog;
   trainer_clients: TrainerClient;
@@ -81,6 +85,7 @@ export function ownerColumn(collection: Collection): string | null {
     case 'challenges':
     case 'gyms':
     case 'membership_plans':
+    case 'gym_classes':
     case 'gym_equipment':
     case 'maintenance_logs':
       return null; // shared / gym-scoped resources
@@ -99,4 +104,6 @@ export function ownerOf<C extends Collection>(collection: C, row: Row<C>): strin
 }
 
 /** Collections that are shared across users and seeded once. */
-export const SHARED_COLLECTIONS: Collection[] = ['challenges', 'gyms', 'membership_plans', 'gym_equipment', 'maintenance_logs'];
+export const SHARED_COLLECTIONS: Collection[] = [
+  'challenges', 'gyms', 'membership_plans', 'gym_classes', 'gym_equipment', 'maintenance_logs',
+];

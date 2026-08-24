@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Eye, EyeOff, AlertTriangle, Dumbbell, UserRoundCog, ClipboardList, ShieldCheck, Building2 } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, AlertTriangle, Dumbbell, Store, UserRoundCog } from 'lucide-react';
 import { AuthLayout } from './AuthLayout';
 import { Divider } from './SignIn';
 import { GoogleButton } from './GoogleButton';
@@ -15,10 +15,14 @@ import type { Role } from '@/types';
 const ROLES: Array<{ value: Role; title: string; description: string; icon: typeof Dumbbell }> = [
   { value: 'member', title: 'Gym Member', description: 'Train with a personal programme, track progress and build habits.', icon: Dumbbell },
   { value: 'trainer', title: 'Trainer / Coach', description: 'Manage assigned clients, build programmes and review their progress.', icon: UserRoundCog },
-  { value: 'staff', title: 'Gym Staff', description: 'Handle check-ins, memberships and front-desk operations.', icon: ClipboardList },
-  { value: 'manager', title: 'Gym Manager', description: 'Members, trainers, equipment and gym-wide analytics.', icon: Building2 },
-  { value: 'admin', title: 'Super Administrator', description: 'Full system configuration and audit access.', icon: ShieldCheck },
 ];
+
+/*
+ * Staff, manager and admin are deliberately not on this list. A sign-up form
+ * cannot be allowed to hand out access to other people's data — the server
+ * clamps self-registration to member or trainer regardless of what is sent.
+ * Manager comes from creating a gym; staff is granted by that gym's manager.
+ */
 
 export default function SignUp() {
   const { signUp, busy, error, clearError } = useAuth();
@@ -76,6 +80,14 @@ export default function SignUp() {
           <Button size="lg" block className="mt-4" onClick={() => setStep('details')} iconRight={<ArrowRight size={17} />}>
             Continue
           </Button>
+          <p className="flex items-start gap-2 pt-1 text-2xs text-ink-3 leading-relaxed">
+            <Store size={13} className="mt-0.5 shrink-0" aria-hidden />
+            <span>
+              Running a gym? Sign up here first, then create your gym from{' '}
+              <span className="font-semibold text-ink-2">My Gym</span> — that is what makes you its
+              manager. Front-desk staff are added by the gym's manager.
+            </span>
+          </p>
         </div>
       ) : (
         <form onSubmit={onSubmit} className="space-y-4" noValidate>

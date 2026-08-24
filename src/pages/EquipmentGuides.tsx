@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ArrowRight, ChevronDown, Clock, Dumbbell, ExternalLink, PlayCircle,
+  ArrowRight, Check, ChevronDown, Clock, Dumbbell, ExternalLink, PlayCircle,
   ShieldAlert, Sparkles, Target, VideoOff, WifiOff,
 } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
@@ -9,15 +9,17 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/States';
 import { EquipmentArt } from '@/components/EquipmentArt';
+import { BandSetSetupDiagram } from '@/components/equipment/BandSetSetupDiagram';
 import { useData } from '@/store/data';
 import { useOnline } from '@/lib/hooks';
 import { EQUIPMENT_LABEL, EQUIPMENT_OPTIONS } from '@/data/exercises';
 import {
-  equipmentGuideFor, equipmentVideoUrl, exercisesUsing, guideMinutes,
+  equipmentGoalRoutine, equipmentGuideFor, equipmentVideoUrl, exercisesUsing, guideMinutes,
   type EquipmentGuide,
 } from '@/lib/fitness/equipmentGuides';
+import { GOAL_LABEL } from '@/lib/fitness/program';
 import { cn } from '@/lib/utils';
-import type { Equipment } from '@/types';
+import type { Equipment, GoalKind } from '@/types';
 
 /* ============================================================
    My equipment
@@ -41,6 +43,8 @@ export default function EquipmentGuides() {
     () => EQUIPMENT_OPTIONS.filter((eq) => !owned.includes(eq)),
     [owned],
   );
+
+  const goal: GoalKind = fitnessProfile?.primary_goal ?? 'general_fitness';
 
   return (
     <div className="max-w-5xl">
@@ -67,7 +71,7 @@ export default function EquipmentGuides() {
         <>
           <div className="space-y-4">
             {owned.map((eq) => (
-              <EquipmentGuideCard key={eq} equipment={eq} owned />
+              <EquipmentGuideCard key={eq} equipment={eq} goal={goal} owned />
             ))}
           </div>
 
@@ -92,7 +96,7 @@ export default function EquipmentGuides() {
                     Tick any of these on your profile and FitHub will start programming with them.
                   </p>
                   {rest.map((eq) => (
-                    <EquipmentGuideCard key={eq} equipment={eq} owned={false} />
+                    <EquipmentGuideCard key={eq} equipment={eq} goal={goal} owned={false} />
                   ))}
                 </div>
               )}
@@ -104,7 +108,11 @@ export default function EquipmentGuides() {
   );
 }
 
-function EquipmentGuideCard({ equipment, owned }: { equipment: Equipment; owned: boolean }) {
+function EquipmentGuideCard({ equipment, goal, owned }: {
+  equipment: Equipment;
+  goal: GoalKind;
+  owned: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const guide = equipmentGuideFor(equipment);
   const label = EQUIPMENT_LABEL[equipment] ?? equipment;
@@ -133,16 +141,21 @@ function EquipmentGuideCard({ equipment, owned }: { equipment: Equipment; owned:
         <ChevronDown size={18} className={cn('shrink-0 text-ink-3 transition-transform', open && 'rotate-180')} />
       </button>
 
-      {open && <GuideDetail guide={guide} label={label} />}
+      {open && <GuideDetail guide={guide} label={label} goal={goal} />}
     </article>
   );
 }
 
-function GuideDetail({ guide, label }: { guide: EquipmentGuide; label: string }) {
+function GuideDetail({ guide, label, goal }: {
+  guide: EquipmentGuide;
+  label: string;
+  goal: GoalKind;
+}) {
   const online = useOnline();
   const videoUrl = equipmentVideoUrl(guide);
   const exercises = exercisesUsing(guide.equipment);
   const total = guideMinutes(guide);
+  const routine = equipmentGoalRoutine(guide.equipment, goal);
 
   return (
     <div className="border-t border-line p-4 sm:p-5 space-y-5">
@@ -199,6 +212,69 @@ function GuideDetail({ guide, label }: { guide: EquipmentGuide; label: string })
           </div>
         </div>
       </div>
+
+      {guide.equipment === 'band_set' && (
+        <div>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-brand-text">
+            Setting it up — follow the pictures
+          </h3>
+          <p className="mt-1 text-sm text-ink-3 leading-relaxed">
+            Five steps, in order. Steps 3 and 4 are the ones that hurt people.
+          </p>
+          <BandSetSetupDiagram className="mt-3" />
+        </div>
+      )}
+
+      {routine && (
+        <section className="rounded-2xl border border-brand/30 bg-brand-soft/15 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-brand-text">
+              <Target size={13} aria-hidden /> For your goal — {GOAL_LABEL[goal].toLowerCase()}
+            </h3>
+            <Badge tone="brand" size="sm">Matched to your profile</Badge>
+          </div>
+          <p className="mt-2 text-sm font-bold leading-snug">{routine.headline}</p>
+          <p className="mt-1 text-xs text-ink-2 leading-relaxed">{routine.why}</p>
+
+          <ol className="mt-3.5 space-y-3">
+            {routine.steps.map((step, index) => (
+              <li key={step.title} className="flex gap-3">
+                <span className="mt-0.5 h-6 w-6 shrink-0 rounded-full bg-brand text-brand-contrast grid place-items-center text-xs font-bold tabular">
+                  {index + 1}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold leading-snug">{step.title}</p>
+                  <p className="mt-0.5 text-xs text-ink-2 leading-relaxed">{step.detail}</p>
+                  <p className="mt-1 flex items-start gap-1.5 text-2xs text-ink-3 leading-relaxed">
+                    <Check size={12} className="mt-0.5 shrink-0 text-brand-text" aria-hidden />
+                    <span><span className="font-semibold text-ink-2">How you know it worked:</span> {step.cue}</span>
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ol>
+
+          <div className="mt-3.5 grid gap-2 sm:grid-cols-2">
+            <div className="rounded-xl border border-line bg-surface-2/60 p-3">
+              <p className="text-2xs font-bold uppercase tracking-wider text-ink-3">Sets and reps</p>
+              <p className="mt-0.5 text-xs text-ink-2 leading-relaxed">{routine.dose}</p>
+            </div>
+            <div className="rounded-xl border border-line bg-surface-2/60 p-3">
+              <p className="text-2xs font-bold uppercase tracking-wider text-ink-3">How often</p>
+              <p className="mt-0.5 text-xs text-ink-2 leading-relaxed">{routine.weekly}</p>
+            </div>
+          </div>
+
+          {/* Where the kit is a compromise for this goal, said out loud rather
+              than left for the user to discover after three flat months. */}
+          {routine.caveat && (
+            <p className="mt-2.5 flex items-start gap-2 rounded-xl border border-warn/30 bg-warn-soft/30 p-3 text-2xs text-ink-2 leading-relaxed">
+              <ShieldAlert size={13} className="mt-0.5 shrink-0 text-warn" aria-hidden />
+              <span><strong className="font-semibold text-ink">Where this kit falls short.</strong> {routine.caveat}</span>
+            </p>
+          )}
+        </section>
+      )}
 
       <div>
         <h3 className="text-xs font-bold uppercase tracking-wider text-brand-text">
